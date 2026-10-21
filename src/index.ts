@@ -2,6 +2,8 @@ import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import {
   COMPLETIONS_PER_TIER,
+  LOAD_SUBTYPE_LABEL,
+  LOAD_SUBTYPES,
   LOCAL_CONTRACT,
   companyPower,
   companyTotalAmmo,
@@ -12,14 +14,17 @@ import {
   formatDate,
   getContract,
   getQuantity,
+  getSelectedAmmo,
   getTierProgress,
   issueCompanyAmmo,
   listBoardContracts,
   listStartingCalibers,
+  parseLoadSubtype,
   recruitSoldiers,
   remainingCapacity,
   selectCaliber,
   setFactoryProduct,
+  setLoadSubtype,
   startContract,
   type CaliberId,
   type FactoryProduct,
@@ -35,8 +40,12 @@ function printStatus(state: GameState): void {
   const lock = state.factory.locked ? "locked" : "open";
   const product = state.factory.product ?? "idle";
   const tier = getTierProgress(state);
+  const load = getSelectedAmmo(state);
+  const loadNote = state.selectedCaliberId
+    ? ` | load ${LOAD_SUBTYPE_LABEL[state.selectedLoadSubtype]}${load ? ` $${load.productionCost}/rd` : ""}`
+    : "";
   console.log(
-    `${formatDate(state)} | funds $${state.funds.toFixed(0)} | factory: ${product} (${lock}) | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}`,
+    `${formatDate(state)} | funds $${state.funds.toFixed(0)} | factory: ${product} (${lock}) | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}${loadNote}`,
   );
   console.log(
     `  Tier: ${tier.currentLabel} | next unlock ${tier.completionsTowardNext}/${tier.completionsRequired}${tier.nextLabel ? ` → ${tier.nextLabel}` : " (max)"} | wins ${tier.jobsCompletedTotal}`,
@@ -182,10 +191,10 @@ async function interactive(): Promise<void> {
   printStatus(state);
 
   const calibers = listStartingCalibers();
-  console.log("\nStarting caliber families:");
+  console.log("\nStarting caliber families (FMJ baseline; HP 1.2× / AP 2× cost):");
   calibers.forEach((c, i) => {
     console.log(
-      `  ${i + 1}. ${c.name} → ${c.rifle} (cost ${c.productionCost}/rd, dmg ${c.baseDamage})`,
+      `  ${i + 1}. ${c.name} → ${c.rifle} (FMJ $${c.productionCost}/rd, dmg ${c.baseDamage}, pen ${c.basePenetration})`,
     );
   });
   const calChoice = await askNumber(rl, "Choose caliber [5=Mauser]: ", 5);
@@ -209,7 +218,8 @@ Actions:
   3) Recruit
   4) Issue ammo loadout
   5) Accept job from board (by number)
-  6) Quit
+  6) Set load subtype (FMJ / hollow / AP)
+  7) Quit
 `);
     const choice = await askNumber(rl, "Choice [2]: ", 2);
     switch (choice) {
@@ -259,7 +269,25 @@ Actions:
         console.log(r.message);
         break;
       }
-      case 6:
+      case 6: {
+        console.log(
+          "  Loads: " +
+            LOAD_SUBTYPES.map(
+              (s, i) => `${i + 1}=${LOAD_SUBTYPE_LABEL[s]}`,
+            ).join(" / "),
+        );
+        const raw = await ask(rl, "Subtype [fmj]: ", "fmj");
+        const parsed = parseLoadSubtype(raw);
+        if (!parsed) {
+          console.log("Unknown subtype. Use fmj / hollow / ap (or 1/2/3).");
+          break;
+        }
+        const r = setLoadSubtype(state, parsed);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 7:
         playing = false;
         break;
       default:

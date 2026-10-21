@@ -100,14 +100,14 @@ Loadout includes `gearIds[]` alongside weapon/ammo.
 
 ## Systems stats (OpenSpec `systems-stats-schema`)
 
-- **Caliber:** family/variant, `baseDamage`/`basePenetration` (+ flat weapon bonuses), gun powder grains, manufacture cost
+- **Caliber:** family + load subtypes **FMJ / hollow point / AP** (cost 1× / 1.2× / 2×; HP high dmg/low pen; AP baseline dmg/high pen). Default FMJ. See `caliber-load-subtypes`.
 - **Food:** nourishment, happiness (can be negative), cost, recipe unlock (`FOODS` catalog)
 - **Composition:** squads, doctrine, consumption, combine/appoint helpers
 - **Contracts:** manpower, cash/item rewards, combat type/terrain, duration, success→KIA/wounded
 - **Barracks:** pop slots, duty states, default squad fill on recruit
 
-**Wired now:** caliber damage formula, manpower gate, pop-cap recruit, default squad, success/wound pass.  
-**Deferred:** daily consumption/happiness economy, multi-squad optimizer, building pop upgrades, variant ballistics.
+**Wired now:** caliber damage/pen by subtype, manpower gate, pop-cap recruit, default squad, success/wound pass.  
+**Deferred:** daily consumption/happiness economy, multi-squad optimizer, building pop upgrades.
 
 ## Status
 

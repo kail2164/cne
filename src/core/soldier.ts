@@ -1,4 +1,4 @@
-import type { CaliberId, Loadout, PerkDef, Soldier } from "./types.js";
+import type { AmmoId, Loadout, PerkDef, Soldier } from "./types.js";
 
 /** Exhausted soldiers fight at −40% effective combat stats. */
 export const EXHAUSTION_FACTOR = 0.6;
@@ -92,7 +92,7 @@ export function assignPerk(
 
 export function emptyLoadout(
   weaponId: string,
-  ammoCaliberId: CaliberId,
+  ammoCaliberId: AmmoId,
   ammoRounds = 0,
 ): Loadout {
   return { weaponId, ammoCaliberId, ammoRounds, gearIds: [] };

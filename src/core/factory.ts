@@ -1,4 +1,4 @@
-import { getCaliber, getRifleForCaliber } from "./catalog.js";
+import { getRifleForCaliber, getSelectedAmmo } from "./catalog.js";
 import type {
   ActionResult,
   CycleProductionResult,
@@ -68,8 +68,16 @@ export function resolveFactoryMonth(
     };
   }
 
-  const cal = getCaliber(state.selectedCaliberId)!;
+  const cal = getSelectedAmmo(state);
   const rifle = getRifleForCaliber(state.selectedCaliberId)!;
+  if (!cal) {
+    return {
+      ok: false,
+      state,
+      message: "No ammo load for selected family/subtype.",
+      data: { ...empty, shortfalls: ["no ammo load"] },
+    };
+  }
   const cap = state.factory.monthlyCapacity;
   const shortfalls: string[] = [];
   const warehouseNotes: string[] = [];

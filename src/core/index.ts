@@ -6,8 +6,14 @@ export {
   RIFLES,
   START,
   WEAPON_STATS_COMBAT_LIVE,
+  LOAD_SUBTYPES,
+  LOAD_SUBTYPE_LABEL,
+  LOAD_SUBTYPE_MULT,
+  ammoId,
   getCaliber,
   getCaliberFamily,
+  getAmmo,
+  getSelectedAmmo,
   getRifle,
   getRifleForCaliber,
   effectiveDamage,
@@ -33,7 +39,13 @@ export {
   applyJobResolution,
 } from "./board.js";
 
-export { createCampaign, listStartingCalibers, selectCaliber } from "./campaign.js";
+export {
+  createCampaign,
+  listStartingCalibers,
+  selectCaliber,
+  setLoadSubtype,
+  parseLoadSubtype,
+} from "./campaign.js";
 
 export {
   stockWeight,

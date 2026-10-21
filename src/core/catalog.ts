@@ -1,20 +1,62 @@
-import type { AmmoCaliber, CaliberFamily, Weapon } from "./types.js";
+import type {
+  AmmoCaliber,
+  AmmoId,
+  CaliberFamily,
+  CaliberFamilyId,
+  LoadSubtype,
+  Weapon,
+} from "./types.js";
+
+/** All playable load subtypes (every starter family offers these). */
+export const LOAD_SUBTYPES: LoadSubtype[] = ["fmj", "hollow_point", "ap"];
+
+export const LOAD_SUBTYPE_LABEL: Record<LoadSubtype, string> = {
+  fmj: "FMJ",
+  hollow_point: "Hollow point",
+  ap: "AP",
+};
+
+/** Cost / damage / penetration multipliers vs family FMJ baseline. */
+export const LOAD_SUBTYPE_MULT: Record<
+  LoadSubtype,
+  { cost: number; damage: number; penetration: number }
+> = {
+  fmj: { cost: 1.0, damage: 1.0, penetration: 1.0 },
+  hollow_point: { cost: 1.2, damage: 1.4, penetration: 0.5 },
+  ap: { cost: 2.0, damage: 1.0, penetration: 1.55 },
+};
+
+export function ammoId(familyId: CaliberFamilyId | string, subtype: LoadSubtype): AmmoId {
+  return `${familyId}-${subtype}`;
+}
 
 export const CALIBER_FAMILIES: CaliberFamily[] = [
-  { id: "762x54r", name: "7.62×54mmR family", variants: ["ball", "steel_tip", "tracer"] },
-  { id: "3006", name: ".30-06 family", variants: ["ball", "steel_tip", "tracer", "hollow"] },
-  { id: "303br", name: ".303 British family", variants: ["ball", "tracer"] },
-  { id: "8x50r", name: "8×50mmR Lebel family", variants: ["ball", "tracer"] },
-  { id: "792x57", name: "7.92×57mm Mauser family", variants: ["ball", "steel_tip", "tracer"] },
+  { id: "762x54r", name: "7.62×54mmR family", variants: [...LOAD_SUBTYPES] },
+  { id: "3006", name: ".30-06 family", variants: [...LOAD_SUBTYPES] },
+  { id: "303br", name: ".303 British family", variants: [...LOAD_SUBTYPES] },
+  { id: "8x50r", name: "8×50mmR Lebel family", variants: [...LOAD_SUBTYPES] },
+  { id: "792x57", name: "7.92×57mm Mauser family", variants: [...LOAD_SUBTYPES] },
 ];
 
-export const CALIBERS: AmmoCaliber[] = [
+type FamilyBaseline = {
+  familyId: CaliberFamilyId;
+  shortName: string;
+  baseCost: number;
+  materialCost: number;
+  weightPerRound: number;
+  volumePerRound: number;
+  baseDamage: number;
+  basePenetration: number;
+  gunPowderAmount: number;
+  supplyEfficiency: number;
+  rifleId: string;
+};
+
+const FAMILY_BASELINES: FamilyBaseline[] = [
   {
-    id: "762x54r",
-    name: "7.62×54mmR Ball",
     familyId: "762x54r",
-    variant: "ball",
-    productionCost: 1.2,
+    shortName: "7.62×54mmR",
+    baseCost: 1.2,
     materialCost: 0.8,
     weightPerRound: 0.025,
     volumePerRound: 0.018,
@@ -25,11 +67,9 @@ export const CALIBERS: AmmoCaliber[] = [
     rifleId: "mosin-m91",
   },
   {
-    id: "3006",
-    name: ".30-06 Ball",
     familyId: "3006",
-    variant: "ball",
-    productionCost: 1.4,
+    shortName: ".30-06",
+    baseCost: 1.4,
     materialCost: 0.9,
     weightPerRound: 0.028,
     volumePerRound: 0.02,
@@ -40,11 +80,9 @@ export const CALIBERS: AmmoCaliber[] = [
     rifleId: "springfield-m1903",
   },
   {
-    id: "303br",
-    name: ".303 British Ball",
     familyId: "303br",
-    variant: "ball",
-    productionCost: 1.25,
+    shortName: ".303 British",
+    baseCost: 1.25,
     materialCost: 0.85,
     weightPerRound: 0.024,
     volumePerRound: 0.017,
@@ -55,11 +93,9 @@ export const CALIBERS: AmmoCaliber[] = [
     rifleId: "lee-enfield-smle",
   },
   {
-    id: "8x50r",
-    name: "8×50mmR Lebel Ball",
     familyId: "8x50r",
-    variant: "ball",
-    productionCost: 1.0,
+    shortName: "8×50mmR Lebel",
+    baseCost: 1.0,
     materialCost: 0.7,
     weightPerRound: 0.032,
     volumePerRound: 0.026,
@@ -70,11 +106,9 @@ export const CALIBERS: AmmoCaliber[] = [
     rifleId: "lebel-m1886",
   },
   {
-    id: "792x57",
-    name: "7.92×57mm Mauser Ball",
     familyId: "792x57",
-    variant: "ball",
-    productionCost: 1.35,
+    shortName: "7.92×57mm Mauser",
+    baseCost: 1.35,
     materialCost: 0.9,
     weightPerRound: 0.026,
     volumePerRound: 0.019,
@@ -85,6 +119,30 @@ export const CALIBERS: AmmoCaliber[] = [
     rifleId: "gewehr-98",
   },
 ];
+
+function buildLoads(base: FamilyBaseline): AmmoCaliber[] {
+  return LOAD_SUBTYPES.map((subtype) => {
+    const m = LOAD_SUBTYPE_MULT[subtype];
+    return {
+      id: ammoId(base.familyId, subtype),
+      name: `${base.shortName} ${LOAD_SUBTYPE_LABEL[subtype]}`,
+      familyId: base.familyId,
+      variant: subtype,
+      productionCost: Number((base.baseCost * m.cost).toFixed(4)),
+      materialCost: base.materialCost,
+      weightPerRound: base.weightPerRound,
+      volumePerRound: base.volumePerRound,
+      baseDamage: Number((base.baseDamage * m.damage).toFixed(2)),
+      basePenetration: Number((base.basePenetration * m.penetration).toFixed(2)),
+      gunPowderAmount: base.gunPowderAmount,
+      supplyEfficiency: base.supplyEfficiency,
+      rifleId: base.rifleId,
+    };
+  });
+}
+
+/** All starter family × FMJ/HP/AP ammo entries. */
+export const CALIBERS: AmmoCaliber[] = FAMILY_BASELINES.flatMap(buildLoads);
 
 /** 1910 starter bolt-actions — placeholder-plausible stats (see weapon-stats OpenSpec). */
 export const RIFLES: Weapon[] = [
@@ -223,34 +281,50 @@ export const START = {
   startMonth: 1,
 } as const;
 
+export function getCaliberFamily(id: string): CaliberFamily | undefined {
+  return CALIBER_FAMILIES.find((f) => f.id === id);
+}
+
 export function getCaliber(id: string): AmmoCaliber | undefined {
   return CALIBERS.find((c) => c.id === id);
 }
 
-export function getCaliberFamily(id: string): CaliberFamily | undefined {
-  return CALIBER_FAMILIES.find((f) => f.id === id);
+export function getAmmo(
+  familyId: CaliberFamilyId | string,
+  subtype: LoadSubtype,
+): AmmoCaliber | undefined {
+  return getCaliber(ammoId(familyId, subtype));
+}
+
+/** Active factory/issue ammo for the campaign selection. */
+export function getSelectedAmmo(state: {
+  selectedCaliberId: CaliberFamilyId | string | null;
+  selectedLoadSubtype: LoadSubtype;
+}): AmmoCaliber | undefined {
+  if (!state.selectedCaliberId) return undefined;
+  return getAmmo(state.selectedCaliberId, state.selectedLoadSubtype);
 }
 
 export function getRifle(id: string): Weapon | undefined {
   return RIFLES.find((r) => r.id === id);
 }
 
-export function getRifleForCaliber(caliberId: string): Weapon | undefined {
-  const cal = getCaliber(caliberId);
-  return cal ? getRifle(cal.rifleId) : undefined;
+/** Rifle chambered for a caliber family (not a load subtype). */
+export function getRifleForCaliber(familyId: string): Weapon | undefined {
+  return RIFLES.find((r) => r.caliberId === familyId);
 }
 
-/** Effective ballistic pair: caliber base + flat weapon bonuses. */
-export function effectiveDamage(weaponId: string, caliberId: string): number {
+/** Effective ballistic pair: ammo subtype base + flat weapon bonuses. */
+export function effectiveDamage(weaponId: string, ammoCaliberId: string): number {
   const w = getRifle(weaponId);
-  const c = getCaliber(caliberId);
+  const c = getCaliber(ammoCaliberId);
   if (!w || !c) return 0;
   return c.baseDamage + w.damage;
 }
 
-export function effectivePenetration(weaponId: string, caliberId: string): number {
+export function effectivePenetration(weaponId: string, ammoCaliberId: string): number {
   const w = getRifle(weaponId);
-  const c = getCaliber(caliberId);
+  const c = getCaliber(ammoCaliberId);
   if (!w || !c) return 0;
   return c.basePenetration + w.penetration;
 }

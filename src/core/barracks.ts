@@ -1,4 +1,4 @@
-import { START, getRifle, getRifleForCaliber } from "./catalog.js";
+import { START, getRifle, getRifleForCaliber, getSelectedAmmo } from "./catalog.js";
 import { ensureDefaultSquadFilled } from "./composition.js";
 import { companyForcePower } from "./power.js";
 import {
@@ -60,6 +60,15 @@ export function recruitSoldiers(
   }
 
   const rifle = getRifleForCaliber(state.selectedCaliberId)!;
+  const ammo = getSelectedAmmo(state);
+  if (!ammo) {
+    return {
+      ok: false,
+      state,
+      message: "No ammo load for selected family/subtype.",
+      data: { recruited: 0 },
+    };
+  }
   const availableRifles = getQuantity(state.warehouse, "weapon", rifle.id);
   const affordable = Math.floor(state.funds / START.recruitCostPerSoldier);
   const openSlots = Math.max(0, state.barracksPopSlots - livingPop(state));
@@ -92,7 +101,7 @@ export function recruitSoldiers(
     return createRecruitSoldier(
       id,
       `Private ${baseId + i + 1}`,
-      emptyLoadout(rifle.id, state.selectedCaliberId!, 0),
+      emptyLoadout(rifle.id, ammo.id, 0),
     );
   });
 
@@ -145,21 +154,29 @@ export function issueCompanyAmmo(
     return { ok: false, state, message: "Ammo per soldier cannot be negative.", data: { issued: 0 } };
   }
 
-  const calId = state.selectedCaliberId;
+  const ammo = getSelectedAmmo(state);
+  if (!ammo) {
+    return {
+      ok: false,
+      state,
+      message: "No ammo load for selected family/subtype.",
+      data: { issued: 0 },
+    };
+  }
   const need = troops.length * roundsPerSoldier;
-  const available = getQuantity(state.warehouse, "ammo", calId);
+  const available = getQuantity(state.warehouse, "ammo", ammo.id);
   if (available < need) {
     return {
       ok: false,
       state,
-      message: `Need ${need} rounds, warehouse has ${available}.`,
+      message: `Need ${need} ${ammo.name}, warehouse has ${available}.`,
       data: { issued: 0 },
     };
   }
 
   let next = state;
   if (need > 0) {
-    const wd = withdrawItems(next, "ammo", calId, need);
+    const wd = withdrawItems(next, "ammo", ammo.id, need);
     if (!wd.ok) return { ok: false, state, message: wd.message, data: { issued: 0 } };
     next = wd.state;
   }
@@ -174,6 +191,7 @@ export function issueCompanyAmmo(
               ...s,
               loadout: {
                 ...s.loadout,
+                ammoCaliberId: ammo.id,
                 ammoRounds: roundsPerSoldier,
                 gearIds: s.loadout.gearIds ?? [],
               },
@@ -194,7 +212,7 @@ export function issueCompanyAmmo(
   return {
     ok: true,
     state: next,
-    message: `Issued ${roundsPerSoldier} rounds × ${troops.length} soldiers (${need} total).${carryNote}`,
+    message: `Issued ${roundsPerSoldier} ${ammo.name} × ${troops.length} soldiers (${need} total).${carryNote}`,
     data: { issued: need },
   };
 }

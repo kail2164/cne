@@ -1,3 +1,4 @@
+/** Caliber family lock / rifle chamber (not a specific load). */
 export type CaliberId =
   | "762x54r"
   | "3006"
@@ -7,7 +8,17 @@ export type CaliberId =
 
 export type CaliberFamilyId = CaliberId;
 
-export type RoundVariant = "ball" | "steel_tip" | "tracer" | "hollow";
+/**
+ * Playable load subtype for a caliber family.
+ * FMJ = default; hollow_point = high dmg / low pen; ap = high pen / normal dmg.
+ */
+export type LoadSubtype = "fmj" | "hollow_point" | "ap";
+
+/** @deprecated Use LoadSubtype — kept as alias for older OpenSpec wording. */
+export type RoundVariant = LoadSubtype;
+
+/** Catalog / warehouse ammo id, e.g. `792x57-fmj`. */
+export type AmmoId = string;
 
 export type ProductLine = "ammo" | "rifles";
 
@@ -29,18 +40,19 @@ export type BarrackDuty = "unassigned" | "assigned" | "wounded" | "ready";
 export interface CaliberFamily {
   id: CaliberFamilyId;
   name: string;
-  /** Variants this family can chamber/produce. */
-  variants: RoundVariant[];
+  /** Load subtypes this family can produce. */
+  variants: LoadSubtype[];
 }
 
 export interface AmmoCaliber {
-  id: CaliberId;
+  /** Unique ammo id (`${familyId}-${subtype}`). */
+  id: AmmoId;
   name: string;
   /** Caliber family this round belongs to. */
   familyId: CaliberFamilyId;
-  /** Round construction variant. */
-  variant: RoundVariant;
-  /** Manufacture cost in funds. */
+  /** Load subtype (FMJ / hollow point / AP). */
+  variant: LoadSubtype;
+  /** Manufacture cost in funds (includes subtype multiplier). */
   productionCost: number;
   materialCost: number;
   weightPerRound: number;
@@ -150,7 +162,8 @@ export interface Weapon {
 
 export interface Loadout {
   weaponId: string;
-  ammoCaliberId: CaliberId;
+  /** Full ammo catalog id including load subtype. */
+  ammoCaliberId: AmmoId;
   ammoRounds: number;
   /** Equipment / gear item ids (kit, armor stubs — catalog later). */
   gearIds: string[];
@@ -315,7 +328,10 @@ export interface GameState {
   /** Absolute turn/cycle index (starts at 1). */
   turn: number;
   funds: number;
+  /** Locked caliber family (rifle chamber). */
   selectedCaliberId: CaliberId | null;
+  /** Active load subtype for factory / issue (default FMJ). */
+  selectedLoadSubtype: LoadSubtype;
   warehouse: Warehouse;
   factory: FactoryState;
   company: Company;
