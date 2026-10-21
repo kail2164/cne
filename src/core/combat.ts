@@ -1,10 +1,20 @@
 import { applyJobResolution, getContract } from "./board.js";
-import { effectiveDamage, getCaliber, getRifle } from "./catalog.js";
+import { getCaliber } from "./catalog.js";
 import {
   checkContractAcceptance,
   estimateSuccessChance,
 } from "./logistics.js";
-import { STAMINA_DRAIN_PER_TICK, soldierCombatFactor } from "./soldier.js";
+import {
+  casualtiesFromDamage,
+  computeEnemyProfile,
+  computeFriendlyProfile,
+  describeMatchup,
+  hasArmorAdvantage,
+  hasRangeAdvantage,
+  planInitiative,
+  resolveVolley,
+} from "./power.js";
+import { STAMINA_DRAIN_PER_TICK } from "./soldier.js";
 import type {
   ActionResult,
   ActiveMission,
@@ -50,18 +60,6 @@ function applyCasualties(soldiers: Soldier[], count: number): number {
     killed += 1;
   }
   return killed;
-}
-
-function firepower(soldiers: Soldier[]): number {
-  return living(soldiers).reduce((sum, s) => {
-    if (!s.loadout) return sum;
-    const w = getRifle(s.loadout.weaponId);
-    if (!w) return sum;
-    const dmg = effectiveDamage(s.loadout.weaponId, s.loadout.ammoCaliberId);
-    const fireFactor = Math.min(1.3, Math.max(0.7, w.fireRateRpm / 15));
-    const reliFactor = Math.min(1, Math.max(0.5, w.reliabilityPct / 100));
-    return sum + dmg * fireFactor * reliFactor * soldierCombatFactor(s);
-  }, 0);
 }
 
 function applySuccessWoundModel(
@@ -227,7 +225,7 @@ function finalizeMission(
 
 /**
  * One monthly combat step. Called from endTurn while a mission is active.
- * Mutates soldier loadouts/alive on the returned state.
+ * Uses force power + engagement (initiative, hit/range/pen, size damage).
  */
 export function progressCombatMonth(
   state: GameState,
@@ -271,8 +269,31 @@ export function progressCombatMonth(
   let friendlyCasualties = 0;
   const ammoExhausted = ammoBefore <= 0;
 
+  const initiative = planInitiative(contract);
+  const friendly = computeFriendlyProfile(soldiers);
+  const enemy = computeEnemyProfile(contract, {
+    oppositionHp,
+    thieves: initiative.encounter === "thieves",
+  });
+
+  const outRange = hasRangeAdvantage(friendly, enemy);
+  const outArmor = hasArmorAdvantage(friendly, enemy);
+  const advantages: string[] = [];
+  if (outRange) advantages.push("outRange");
+  if (outArmor) advantages.push("outArmor");
+  const mitigateEnemy = outRange || outArmor;
+
+  let friendlyDamage = 0;
+  let enemyDamage = 0;
+  const parts: string[] = [
+    `Month ${monthIndex}/${mission.turnsNeeded}`,
+    initiative.reason,
+    describeMatchup(friendly, enemy),
+  ];
+  if (advantages.length) parts.push(`adv [${advantages.join("+")}]`);
+
   if (liveBefore === 0) {
-    note = "No combat-ready troops left.";
+    parts.push("No combat-ready troops left.");
     retreated = true;
   } else if (!ammoExhausted) {
     const eff = avgSupplyEfficiency(soldiers);
@@ -281,34 +302,72 @@ export function progressCombatMonth(
       Math.ceil((liveBefore * 3) / Math.max(0.5, eff)),
     );
     const spent = consumeAmmo(soldiers, want);
-    const dmg = firepower(soldiers) * 1.35;
-    oppositionHp = Math.max(0, oppositionHp - dmg);
-    note = `Month ${monthIndex}/${mission.turnsNeeded}: volley −${spent} ammo, hit ${dmg.toFixed(1)}.`;
+
+    const standoff = outRange ? friendly.rangeM : undefined;
+
+    const fireFriendly = () => {
+      const volley = resolveVolley(friendly, enemy, { standoffRange: standoff });
+      // Scale so ~20 Gewehr clear local ~380 HP in ~2 months
+      const dealt = volley.damageDealt * 0.95;
+      oppositionHp = Math.max(0, oppositionHp - dealt);
+      friendlyDamage += dealt;
+      parts.push(`our volley −${spent} ammo, ${volley.note} (→${dealt.toFixed(1)})`);
+    };
+
+    const fireEnemy = () => {
+      if (oppositionHp <= 0 || living(soldiers).length === 0) return;
+      const volley = resolveVolley(enemy, friendly, {
+        mitigateIncoming: mitigateEnemy,
+      });
+      enemyDamage += volley.damageDealt;
+      const deaths = casualtiesFromDamage(
+        volley.damageDealt,
+        friendly.hpPerEntity,
+        living(soldiers).length,
+      );
+      // Soft floor: at least some pressure if not mitigated and damage landed
+      const applied =
+        deaths > 0
+          ? deaths
+          : !mitigateEnemy && volley.damageDealt >= friendly.hpPerEntity * 0.4
+            ? 1
+            : 0;
+      friendlyCasualties += applyCasualties(soldiers, applied);
+      parts.push(
+        `${enemy.label} return ${volley.note}${applied ? ` (${applied} down)` : " (no KIA)"}`,
+      );
+    };
+
+    if (initiative.firstStriker === "friendly") {
+      fireFriendly();
+      if (oppositionHp > 0) fireEnemy();
+    } else {
+      fireEnemy();
+      if (living(soldiers).length > 0 && oppositionHp > 0) fireFriendly();
+    }
+
     dryMonths = 0;
   } else {
     dryMonths += 1;
-    note = `Month ${monthIndex}/${mission.turnsNeeded}: ammo out — bayonets.`;
-    oppositionHp = Math.max(0, oppositionHp - firepower(soldiers) * 0.15);
+    parts.push("ammo out — bayonets");
+    const bayonet = resolveVolley(
+      { ...friendly, damagePerEntity: friendly.damagePerEntity * 0.2 },
+      enemy,
+    );
+    oppositionHp = Math.max(0, oppositionHp - bayonet.damageDealt);
+    friendlyDamage += bayonet.damageDealt;
     friendlyCasualties += applyCasualties(
       soldiers,
       Math.max(1, Math.ceil(liveBefore * 0.2)),
     );
     if (dryMonths >= 2) {
       retreated = true;
-      note += " Forced retreat.";
+      parts.push("Forced retreat.");
     }
   }
 
   drainStamina(soldiers);
-
-  if (oppositionHp > 0 && living(soldiers).length > 0 && !retreated) {
-    const deaths = Math.max(
-      0,
-      Math.floor(contract.oppositionDamagePerTurn / 14 + (ammoExhausted ? 1 : 0)),
-    );
-    friendlyCasualties += applyCasualties(soldiers, deaths);
-    note += ` Enemy returns (${deaths} down).`;
-  }
+  note = parts.join(". ") + ".";
 
   const turnsRemaining = Math.max(0, mission.turnsRemaining - 1);
   const entry: CombatLogEntry = {
@@ -321,6 +380,14 @@ export function progressCombatMonth(
     oppositionHpAfter: Number(oppositionHp.toFixed(1)),
     turnsRemainingAfter: turnsRemaining,
     note,
+    friendlyPower: friendly.power,
+    enemyPower: enemy.power,
+    firstStriker: initiative.firstStriker,
+    escortZone: initiative.escortZone,
+    encounter: initiative.encounter,
+    friendlyDamage: Number(friendlyDamage.toFixed(1)),
+    enemyDamage: Number(enemyDamage.toFixed(1)),
+    advantages,
   };
 
   const log = [...mission.log, entry];
@@ -332,7 +399,7 @@ export function progressCombatMonth(
     entry.note = note;
   }
 
-  let nextMission: ActiveMission | null = {
+  const nextMission: ActiveMission = {
     ...mission,
     turnsRemaining,
     oppositionHp,

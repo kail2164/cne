@@ -1,10 +1,10 @@
-import { START, getCaliber, getRifle, getRifleForCaliber } from "./catalog.js";
+import { START, getRifle, getRifleForCaliber } from "./catalog.js";
 import { ensureDefaultSquadFilled } from "./composition.js";
+import { companyForcePower } from "./power.js";
 import {
   createRecruitSoldier,
   emptyLoadout,
   maxAmmoForStrength,
-  soldierCombatFactor,
 } from "./soldier.js";
 import type { ActionResult, GameState, Soldier } from "./types.js";
 import { getQuantity, withdrawItems } from "./warehouse.js";
@@ -38,15 +38,9 @@ export function soldierWeaponFactor(weaponId: string): number {
   return fireFactor * reliFactor;
 }
 
+/** Readiness / matchup power — size, loadout quality, morale, experience. */
 export function companyPower(state: GameState): number {
-  return livingSoldiers(state).reduce((sum, s) => {
-    if (!s.loadout) return sum;
-    const weapon = getRifle(s.loadout.weaponId);
-    const cal = getCaliber(s.loadout.ammoCaliberId);
-    if (!weapon || !cal) return sum;
-    const base = cal.baseDamage + weapon.damage;
-    return sum + base * soldierWeaponFactor(weapon.id) * soldierCombatFactor(s);
-  }, 0);
+  return companyForcePower(state);
 }
 
 export function recruitSoldiers(

@@ -76,6 +76,8 @@ export function estimateSuccessChance(state: GameState, contract: Contract): num
   );
   const manpower = companyTroopCount(state);
   const ratio = manpower / Math.max(1, contract.manpowerRequired);
+  const power = companyPower(state);
+  const powerRatio = power / Math.max(1, contract.minPower);
 
   let chance = contract.baseSuccessChance;
   chance += Math.min(12, (assignedSquads - 1) * 4);
@@ -83,6 +85,7 @@ export function estimateSuccessChance(state: GameState, contract: Contract): num
     chance -= (assignedSquads - 3) * 3;
   }
   chance += Math.min(10, Math.max(-15, (ratio - 1) * 20));
+  chance += Math.min(8, Math.max(-10, (powerRatio - 1) * 12));
 
   for (const squad of state.squads) {
     if (squad.soldierIds.length === 0) continue;

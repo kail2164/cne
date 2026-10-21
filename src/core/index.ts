@@ -71,6 +71,27 @@ export {
 export { startContract, progressCombatMonth } from "./combat.js";
 
 export {
+  computeFriendlyProfile,
+  computeEnemyProfile,
+  companyForcePower,
+  planInitiative,
+  resolveVolley,
+  hitChanceAtRange,
+  hasRangeAdvantage,
+  hasArmorAdvantage,
+  escortZoneFor,
+  describeMatchup,
+  casualtiesFromDamage,
+} from "./power.js";
+export type {
+  ForceProfile,
+  VolleyResult,
+  InitiativePlan,
+  EscortZone,
+  EncounterKind,
+} from "./power.js";
+
+export {
   EXHAUSTION_FACTOR,
   WEIGHT_MIN_KG,
   WEIGHT_MAX_KG,

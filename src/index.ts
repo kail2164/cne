@@ -98,9 +98,19 @@ function doEndTurns(state: GameState, count: number): GameState {
       if (r.log.length) {
         console.log("  Combat months:");
         for (const e of r.log) {
+          const pwr =
+            e.friendlyPower != null
+              ? ` pwr ${e.friendlyPower}/${e.enemyPower}`
+              : "";
+          const first = e.firstStriker ? ` 1st=${e.firstStriker}` : "";
+          const dmg =
+            e.friendlyDamage != null
+              ? ` dmg ${e.friendlyDamage}/${e.enemyDamage}`
+              : "";
           console.log(
-            `    M${e.month}: ammo ${e.ammoBefore}→${e.ammoAfter} | cas ${e.friendlyCasualties} | living ${e.livingAfter} | oppHP ${e.oppositionHpAfter} | ${e.note}`,
+            `    M${e.month}: ammo ${e.ammoBefore}→${e.ammoAfter} | cas ${e.friendlyCasualties} | living ${e.livingAfter} | oppHP ${e.oppositionHpAfter}${pwr}${first}${dmg}`,
           );
+          console.log(`      ${e.note}`);
         }
       }
     }

@@ -78,8 +78,8 @@ In Cursor chat: `/opsx-propose`, `/opsx-apply`, etc.
 ## Weapon stats
 
 `Weapon` carries a full 1910 ballistics/handling profile (m/s, MoA, ranges, rpm, %, kg, mm, etc.).  
-**Live in Phase 1 combat:** `damage`, `fireRateRpm`, `reliabilityPct` (plus logistics `productionCost` / `weight`).  
-**Schema ready, sim deferred:** MoA/range hit chance, wear, recoil, handling, reload cadence — see OpenSpec change `weapon-stats-schema`.
+**Live in Phase 1 combat:** `damage`, `penetration`, effective/max range bands (hit chance), `fireRateRpm`, `reliabilityPct` (plus logistics `productionCost` / `weight`).  
+**Schema ready, sim deferred:** MoA fine-grain, wear, recoil, handling, reload cadence — see OpenSpec change `weapon-stats-schema`.
 
 ## Soldier stats
 
@@ -95,6 +95,7 @@ Loadout includes `gearIds[]` alongside weapon/ammo.
 - **Factory:** one product (ammo|rifles), money only, locked until end turn.
 - **Contracts:** board ≤10 jobs; `turnsNeeded` months; accept starts a mission; each end turn = one combat month.
 - **Tiers:** Local → Provinces → Interstates → National → Global; **20 victories** to unlock the next tier; higher tiers need stronger army and pay better.
+- **Power / engagement:** company power from size + loadout quality + morale + experience; monthly fights use initiative by combat type, hit/range/pen × size damage, and very low incoming when out-ranging or out-armoring (see `power-combat-engagement`).
 - Try: `npm start` → view board → **5) Accept** by # → **2) End turn** until resolved (or `npm run demo`).
 
 ## Systems stats (OpenSpec `systems-stats-schema`)

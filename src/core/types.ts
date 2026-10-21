@@ -354,6 +354,22 @@ export interface CombatLogEntry {
   oppositionHpAfter: number;
   turnsRemainingAfter: number;
   note: string;
+  /** Friendly aggregate power this month. */
+  friendlyPower?: number;
+  /** Enemy / thieves aggregate power this month. */
+  enemyPower?: number;
+  /** Who opened the engagement. */
+  firstStriker?: "friendly" | "enemy";
+  /** Escort zone when applicable. */
+  escortZone?: "frontline" | "backline" | null;
+  /** Encounter profile. */
+  encounter?: "enemy" | "thieves";
+  /** Damage dealt by friendly volley. */
+  friendlyDamage?: number;
+  /** Damage dealt by enemy/thieves volley. */
+  enemyDamage?: number;
+  /** Out-range / out-armor flags. */
+  advantages?: string[];
 }
 
 export interface CombatResult {
