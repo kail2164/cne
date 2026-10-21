@@ -1,0 +1,19 @@
+{
+  "name": "conflict-never-ends",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Conflict Never Ends — army-building across multiple conflicts",
+  "type": "module",
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "play": "tsx src/index.ts",
+    "demo": "tsx src/index.ts --demo"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "devDependencies": {
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}
