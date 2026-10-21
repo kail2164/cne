@@ -194,3 +194,30 @@ export {
 } from "./upkeep.js";
 
 export { FOODS, getFood, isFoodUnlocked } from "./food.js";
+
+export {
+  RESEARCH_CATALOG,
+  RP_PER_MONTH,
+  RP_PER_CONTRACT_WIN,
+  STARTER_UNLOCKS,
+  getResearchNode,
+  isResearchUnlocked,
+  isLoadSubtypeUnlocked,
+  isWeaponUnlocked,
+  isGearUnlocked,
+  isFactoryTierUnlocked,
+  canResearch,
+  spendResearch,
+  grantResearch,
+  grantStarterCaliberPath,
+  listAvailableResearch,
+  describeResearchTree,
+  describeAvailableResearch,
+  sumBoostPercent,
+  productionOutputMult,
+  successChanceBoost,
+  primaryRifleIdForFamily,
+  caliberResearchId,
+  weaponResearchId,
+  loadResearchId,
+} from "./research.js";

@@ -385,6 +385,34 @@ export interface Company {
   soldiers: Soldier[];
 }
 
+/** Research catalog node category. */
+export type ResearchKind = "tech" | "building" | "item" | "vehicle";
+
+/** Effect applied when a research node is unlocked. */
+export type ResearchEffect =
+  | { type: "boost"; target: "manpower" | "morale" | "production" | "successChance"; percent: number }
+  | { type: "flat_manpower_slots"; amount: number }
+  | { type: "warehouse_mult"; factor: number }
+  | { type: "unlock_factory_tier"; tierId: FactoryTierId }
+  | { type: "unlock_item"; itemId: string }
+  | { type: "stub" };
+
+export interface ResearchNode {
+  id: string;
+  name: string;
+  kind: ResearchKind;
+  /** Research point cost to unlock (0 = free grant only). */
+  rpCost: number;
+  /** Node ids that must already be unlocked. */
+  requires: string[];
+  /** Optional calendar gate (informational / soft). */
+  earliestYear?: number;
+  /** Required building research id before this item can be unlocked (optional). */
+  requiresBuilding?: string;
+  blurb: string;
+  effects: ResearchEffect[];
+}
+
 export interface GameState {
   /** Calendar year (advances on end turn). */
   year: number;
@@ -413,6 +441,9 @@ export interface GameState {
   /** Active meal plan food id (monthly upkeep). */
   mealPlanId: string;
   garage: Vehicle[];
+  /** Spendable research points. */
+  researchPoints: number;
+  /** Unlocked research node ids. */
   researchUnlocked: string[];
   /** Current contract mission, or null. */
   activeMission: ActiveMission | null;

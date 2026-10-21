@@ -6,6 +6,7 @@ import {
 } from "./board.js";
 import { companyPower, companyTotalAmmo, companyTroopCount } from "./barracks.js";
 import { terrainExperienceBonus } from "./composition.js";
+import { successChanceBoost } from "./research.js";
 import type { ActionResult, Contract, GameState, ReadinessReport } from "./types.js";
 
 export { getContract } from "./board.js";
@@ -91,6 +92,8 @@ export function estimateSuccessChance(state: GameState, contract: Contract): num
     if (squad.soldierIds.length === 0) continue;
     chance += terrainExperienceBonus(squad, contract.terrain) * 0.25;
   }
+
+  chance += successChanceBoost(state);
 
   return Math.round(Math.min(100, Math.max(5, chance)));
 }

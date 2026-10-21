@@ -1,4 +1,5 @@
 import { getFood } from "./food.js";
+import { moraleDesertionThresholdBonus } from "./research.js";
 import type { ActionResult, GameState, UpkeepResult } from "./types.js";
 
 /** Abstract meal servings billed per soldier per month. */
@@ -83,11 +84,16 @@ export function resolveMonthlyUpkeep(
     return soldiers.find((x) => x.id === s.id) ?? s;
   });
 
+  const desertThreshold = Math.max(
+    20,
+    LOYALTY_DESERT_THRESHOLD - moraleDesertionThresholdBonus(state),
+  );
+
   let deserted = 0;
   const kept = fullRoster.filter((s) => {
     if (!s.alive) return true;
-    if (s.loyalty >= LOYALTY_DESERT_THRESHOLD) return true;
-    const chance = Math.min(0.45, ((LOYALTY_DESERT_THRESHOLD - s.loyalty) * 1.5) / 100);
+    if (s.loyalty >= desertThreshold) return true;
+    const chance = Math.min(0.45, ((desertThreshold - s.loyalty) * 1.5) / 100);
     // Deterministic-ish from id + turn for replay stability
     let h = state.turn * 17;
     for (let i = 0; i < s.id.length; i++) h = (h * 31 + s.id.charCodeAt(i)) >>> 0;
@@ -100,7 +106,7 @@ export function resolveMonthlyUpkeep(
   });
 
   if (deserted > 0) {
-    notes.push(`${deserted} deserted (loyalty < ${LOYALTY_DESERT_THRESHOLD}).`);
+    notes.push(`${deserted} deserted (loyalty < ${desertThreshold}).`);
   }
 
   // Clear unit membership for removed soldiers

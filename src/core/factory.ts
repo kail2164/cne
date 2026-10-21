@@ -1,5 +1,12 @@
 import { getRifleForCaliber, getSelectedAmmo } from "./catalog.js";
 import { GEARS, getGear } from "./gear.js";
+import {
+  isFactoryTierUnlocked,
+  isGearUnlocked,
+  isLoadSubtypeUnlocked,
+  isWeaponUnlocked,
+  productionOutputMult,
+} from "./research.js";
 import type {
   ActionResult,
   CycleProductionLine,
@@ -152,6 +159,13 @@ export function buyFactory(
   const tier = getFactoryTier(tierId);
   if (!tier) {
     return { ok: false, state, message: `Unknown factory tier: ${tierId}` };
+  }
+  if (!isFactoryTierUnlocked(state, tierId)) {
+    return {
+      ok: false,
+      state,
+      message: `${tier.name} locked — research building-factory-${tierId} first.`,
+    };
   }
   const price = nextTierPrice(state, tierId);
   if (state.funds < price) {
@@ -360,7 +374,9 @@ export function resolveFactoryMonth(
         continue;
       }
 
-      let qty = targetQty(tier, fac.stage, slot.product);
+      let qty = Math.floor(
+        targetQty(tier, fac.stage, slot.product) * productionOutputMult(next),
+      );
       let unitCost = 0;
       let itemId = "";
       let kindStock: "ammo" | "weapon" | "gear" | "grenade" = "ammo";
@@ -371,6 +387,13 @@ export function resolveFactoryMonth(
         const cal = getSelectedAmmo(next);
         if (!cal) {
           agg.shortfalls.push(`${fac.id}: no ammo load`);
+          continue;
+        }
+        if (
+          next.selectedCaliberId &&
+          !isLoadSubtypeUnlocked(next, next.selectedCaliberId, cal.variant)
+        ) {
+          agg.shortfalls.push(`${fac.id}: load ${cal.variant} not researched`);
           continue;
         }
         unitCost = cal.productionCost * tier.unitCostMult;
@@ -388,13 +411,25 @@ export function resolveFactoryMonth(
           agg.shortfalls.push(`${fac.id}: no rifle`);
           continue;
         }
+        if (!isWeaponUnlocked(next, rifle.id)) {
+          agg.shortfalls.push(`${fac.id}: weapon ${rifle.id} not researched`);
+          continue;
+        }
         unitCost = rifle.productionCost * tier.unitCostMult;
         itemId = rifle.id;
         kindStock = "weapon";
         weight = rifle.weight;
         volume = rifle.volume;
       } else if (slot.product === "gears") {
-        const gear = getGear("basic-pouch") ?? GEARS[0]!;
+        // Prefer highest unlocked gear that is researchable; default pouch.
+        const prefer = ["demo-suit", "body-armor", "ammo-bandolier", "steel-helmet", "basic-pouch"];
+        const gearId =
+          prefer.find((id) => isGearUnlocked(next, id) && getGear(id)) ?? "basic-pouch";
+        if (!isGearUnlocked(next, gearId)) {
+          agg.shortfalls.push(`${fac.id}: no researched gear`);
+          continue;
+        }
+        const gear = getGear(gearId) ?? GEARS[0]!;
         unitCost = 4 * tier.unitCostMult;
         itemId = gear.id;
         kindStock = "gear";

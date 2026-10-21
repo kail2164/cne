@@ -14,6 +14,7 @@ import {
   planInitiative,
   resolveVolley,
 } from "./power.js";
+import { RP_PER_CONTRACT_WIN, awardContractWinRp } from "./research.js";
 import { STAMINA_DRAIN_PER_TICK, weaponConditionOf } from "./soldier.js";
 import { applyMissionMorale } from "./upkeep.js";
 import type {
@@ -225,10 +226,15 @@ function finalizeMission(
   const board = applyJobResolution(next, mission.contractId, won);
   next = board.state;
   next = applyMissionMorale(next, won);
+  let rpNote = "";
+  if (won) {
+    next = awardContractWinRp(next);
+    rpNote = ` +${RP_PER_CONTRACT_WIN} RP.`;
+  }
 
   const moraleNote = won ? "Morale +6." : "Morale −12.";
   const summary = won
-    ? `Victory at ${contract.name} (success ~${mission.successChance}%). KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}, loot +$${lootFunds}. ${moraleNote} ${board.message}`
+    ? `Victory at ${contract.name} (success ~${mission.successChance}%). KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}, loot +$${lootFunds}. ${moraleNote}${rpNote} ${board.message}`
     : retreated
       ? `Retreat from ${contract.name}. KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}. ${moraleNote} ${board.message}`
       : `Defeat at ${contract.name}. KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}. ${moraleNote} ${board.message}`;

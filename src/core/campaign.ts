@@ -9,6 +9,11 @@ import {
   getRifleForCaliber,
 } from "./catalog.js";
 import { startingBlacksmith } from "./factory.js";
+import {
+  STARTER_UNLOCKS,
+  grantStarterCaliberPath,
+  isLoadSubtypeUnlocked,
+} from "./research.js";
 import type {
   ActionResult,
   CaliberId,
@@ -49,7 +54,8 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
     squads: [],
     mealPlanId: "army-stew",
     garage: [],
-    researchUnlocked: [],
+    researchPoints: 0,
+    researchUnlocked: [...STARTER_UNLOCKS],
     activeMission: null,
     currentTier: "local",
     jobsCompletedTowardNext: 0,
@@ -104,14 +110,18 @@ export function selectCaliber(state: GameState, caliberId: CaliberId): ActionRes
     return { ok: false, state, message: `Unknown caliber family: ${caliberId}` };
   }
   const rifle = getRifleForCaliber(caliberId);
-  return {
-    ok: true,
-    state: {
+  const granted = grantStarterCaliberPath(
+    {
       ...state,
       selectedCaliberId: caliberId,
       selectedLoadSubtype: "fmj",
     },
-    message: `Selected ${family.name}. Unlocked rifle: ${rifle?.name ?? "?"}. Load default: FMJ.`,
+    caliberId,
+  );
+  return {
+    ok: true,
+    state: granted,
+    message: `Selected ${family.name}. Research granted: caliber + ${rifle?.name ?? "primary rifle"}. Load default: FMJ.`,
   };
 }
 
@@ -124,6 +134,16 @@ export function setLoadSubtype(
   }
   if (!LOAD_SUBTYPES.includes(subtype)) {
     return { ok: false, state, message: `Unknown load subtype: ${subtype}` };
+  }
+  if (!isLoadSubtypeUnlocked(state, state.selectedCaliberId, subtype)) {
+    return {
+      ok: false,
+      state,
+      message:
+        subtype === "fmj"
+          ? `FMJ locked — research caliber-${state.selectedCaliberId} first.`
+          : `${LOAD_SUBTYPE_LABEL[subtype]} locked — research load-${state.selectedCaliberId}-${subtype}.`,
+    };
   }
   const ammo = getAmmo(state.selectedCaliberId, subtype);
   if (!ammo) {

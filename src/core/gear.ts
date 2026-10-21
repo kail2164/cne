@@ -5,6 +5,7 @@ import type { GearDef, Loadout, Soldier } from "./types.js";
 export const GEARS: GearDef[] = [
   { id: "basic-pouch", name: "Basic Pouches", weightKg: 1.2, ammoCapacityBonus: 20, armorBonus: 0 },
   { id: "ammo-bandolier", name: "Ammo Bandolier", weightKg: 2.5, ammoCapacityBonus: 60, armorBonus: 0 },
+  { id: "steel-helmet", name: "Steel Helmet", weightKg: 1.4, ammoCapacityBonus: 0, armorBonus: 8 },
   { id: "body-armor", name: "Body Armor", weightKg: 8, ammoCapacityBonus: 0, armorBonus: 25 },
   { id: "demo-suit", name: "Demolition Suit", weightKg: 14, ammoCapacityBonus: 10, armorBonus: 40 },
 ];

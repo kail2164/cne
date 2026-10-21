@@ -40,9 +40,14 @@ import {
   setFactorySlotProduct,
   setLoadSubtype,
   setMealPlan,
+  spendResearch,
   startContract,
   upgradeCost,
   upgradeFactory,
+  describeAvailableResearch,
+  describeResearchTree,
+  isFactoryTierUnlocked,
+  listAvailableResearch,
   type CaliberId,
   type FactoryProductKind,
   type FactoryTierId,
@@ -66,7 +71,7 @@ function printStatus(state: GameState): void {
     ? ` | load ${LOAD_SUBTYPE_LABEL[state.selectedLoadSubtype]}${load ? ` $${load.productionCost}/rd` : ""}`
     : "";
   console.log(
-    `${formatDate(state)} | funds $${state.funds.toFixed(0)} | plant: ${facNote} | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}${loadNote}`,
+    `${formatDate(state)} | funds $${state.funds.toFixed(0)} | RP ${state.researchPoints} | plant: ${facNote} | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}${loadNote}`,
   );
   const meal = getFood(state.mealPlanId);
   console.log(
@@ -257,7 +262,9 @@ Actions:
   13) List factories
   14) Buy factory (tier)
   15) Upgrade factory
-  16) Quit
+  16) Research — list available / spend RP
+  17) Research tree (all nodes)
+  18) Quit
 `);
     const choice = await askNumber(rl, "Choice [2]: ", 2);
     switch (choice) {
@@ -406,16 +413,20 @@ Actions:
         if (lines.length === 0) console.log("  (no factories)");
         else lines.forEach((l) => console.log(`  ${l}`));
         FACTORY_TIERS.forEach((t) => {
+          const gate = isFactoryTierUnlocked(state, t.id) ? "" : " [RESEARCH LOCKED]";
           console.log(
-            `  buy ${t.id}: $${nextTierPrice(state, t.id)} (base ammo ${t.baseAmmo} / guns ${t.baseWeapons})`,
+            `  buy ${t.id}: $${nextTierPrice(state, t.id)} (base ammo ${t.baseAmmo} / guns ${t.baseWeapons})${gate}`,
           );
         });
         break;
       }
       case 14: {
-        FACTORY_TIERS.forEach((t, i) =>
-          console.log(`  ${i + 1}. ${t.id} — ${t.name} $${nextTierPrice(state, t.id)}`),
-        );
+        FACTORY_TIERS.forEach((t, i) => {
+          const gate = isFactoryTierUnlocked(state, t.id) ? "" : " [LOCKED]";
+          console.log(
+            `  ${i + 1}. ${t.id} — ${t.name} $${nextTierPrice(state, t.id)}${gate}`,
+          );
+        });
         const n = await askNumber(rl, "Tier # [1=blacksmith]: ", 1);
         const tier = FACTORY_TIERS[Math.min(Math.max(n, 1), FACTORY_TIERS.length) - 1]!;
         const r = buyFactory(state, tier.id as FactoryTierId);
@@ -443,7 +454,30 @@ Actions:
         console.log(r.message);
         break;
       }
-      case 16:
+      case 16: {
+        console.log(`  RP: ${state.researchPoints}`);
+        const avail = describeAvailableResearch(state);
+        if (avail.length === 0) console.log("  (nothing available — earn RP or unlock prereqs)");
+        else avail.forEach((l) => console.log(`  ${l}`));
+        const raw = await ask(rl, "Research id or # (blank=skip): ", "");
+        if (!raw) break;
+        const nodes = listAvailableResearch(state);
+        let nodeId = raw;
+        const asNum = Number(raw);
+        if (Number.isFinite(asNum) && asNum >= 1 && asNum <= nodes.length) {
+          nodeId = nodes[asNum - 1]!.id;
+        }
+        const r = spendResearch(state, nodeId);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 17: {
+        console.log(`  RP: ${state.researchPoints} | unlocked: ${state.researchUnlocked.length}`);
+        describeResearchTree(state).forEach((l) => console.log(`  ${l}`));
+        break;
+      }
+      case 18:
         playing = false;
         break;
       default:

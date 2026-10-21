@@ -266,6 +266,127 @@ export const RIFLES: Weapon[] = [
     penetration: 74,
     damage: 9,
   },
+  // Second weapons (research-gated) — shorter / carbine variants
+  {
+    id: "mosin-dragoon",
+    name: "Mosin Dragoon",
+    caliberId: "762x54r",
+    productionCost: 42,
+    materialCost: 11,
+    weight: 3.7,
+    volume: 2.9,
+    muzzleVelocityMps: 840,
+    accuracyMoaAt200m: 3.4,
+    maxRangeM30pct: 1600,
+    effectiveRangeM80pct: 350,
+    fireRateRpm: 12,
+    reliabilityPct: 93,
+    lengthMm: 1238,
+    barrelLengthMm: 730,
+    ammoCapacity: 5,
+    handling: 68,
+    reloadSeconds: 8,
+    wearPerMagazine: 0.85,
+    recoil: 56,
+    penetration: 58,
+    damage: 7.5,
+  },
+  {
+    id: "springfield-m1903a1",
+    name: "Springfield M1903A1",
+    caliberId: "3006",
+    productionCost: 55,
+    materialCost: 14,
+    weight: 3.9,
+    volume: 3.1,
+    muzzleVelocityMps: 825,
+    accuracyMoaAt200m: 2.2,
+    maxRangeM30pct: 2000,
+    effectiveRangeM80pct: 560,
+    fireRateRpm: 12,
+    reliabilityPct: 92,
+    lengthMm: 1097,
+    barrelLengthMm: 610,
+    ammoCapacity: 5,
+    handling: 72,
+    reloadSeconds: 7,
+    wearPerMagazine: 0.65,
+    recoil: 62,
+    penetration: 74,
+    damage: 9.2,
+  },
+  {
+    id: "lee-enfield-no1mk3",
+    name: "Lee–Enfield No.1 Mk III",
+    caliberId: "303br",
+    productionCost: 50,
+    materialCost: 13,
+    weight: 3.9,
+    volume: 3.0,
+    muzzleVelocityMps: 744,
+    accuracyMoaAt200m: 2.7,
+    maxRangeM30pct: 1600,
+    effectiveRangeM80pct: 460,
+    fireRateRpm: 20,
+    reliabilityPct: 91,
+    lengthMm: 1132,
+    barrelLengthMm: 640,
+    ammoCapacity: 10,
+    handling: 80,
+    reloadSeconds: 4.5,
+    wearPerMagazine: 1.0,
+    recoil: 54,
+    penetration: 58,
+    damage: 8.5,
+  },
+  {
+    id: "berthier-m1907",
+    name: "Berthier M1907",
+    caliberId: "8x50r",
+    productionCost: 44,
+    materialCost: 12,
+    weight: 3.8,
+    volume: 3.0,
+    muzzleVelocityMps: 700,
+    accuracyMoaAt200m: 3.3,
+    maxRangeM30pct: 1400,
+    effectiveRangeM80pct: 360,
+    fireRateRpm: 12,
+    reliabilityPct: 90,
+    lengthMm: 1175,
+    barrelLengthMm: 685,
+    ammoCapacity: 3,
+    handling: 70,
+    reloadSeconds: 6,
+    wearPerMagazine: 1.0,
+    recoil: 55,
+    penetration: 52,
+    damage: 7.2,
+  },
+  {
+    id: "karabiner-98a",
+    name: "Karabiner 98a",
+    caliberId: "792x57",
+    productionCost: 48,
+    materialCost: 12,
+    weight: 3.7,
+    volume: 2.8,
+    muzzleVelocityMps: 860,
+    accuracyMoaAt200m: 2.8,
+    maxRangeM30pct: 1800,
+    effectiveRangeM80pct: 450,
+    fireRateRpm: 12,
+    reliabilityPct: 93,
+    lengthMm: 1090,
+    barrelLengthMm: 590,
+    ammoCapacity: 5,
+    handling: 74,
+    reloadSeconds: 7,
+    wearPerMagazine: 0.8,
+    recoil: 64,
+    penetration: 70,
+    damage: 8.5,
+  },
 ];
 
 export const START = {
@@ -308,9 +429,29 @@ export function getRifle(id: string): Weapon | undefined {
   return RIFLES.find((r) => r.id === id);
 }
 
-/** Rifle chambered for a caliber family (not a load subtype). */
+/**
+ * Primary (first catalog) rifle chambered for a caliber family.
+ * Prefer research-unlocked primary when multiple exist.
+ */
 export function getRifleForCaliber(familyId: string): Weapon | undefined {
+  const PRIMARY: Record<string, string> = {
+    "762x54r": "mosin-m91",
+    "3006": "springfield-m1903",
+    "303br": "lee-enfield-smle",
+    "8x50r": "lebel-m1886",
+    "792x57": "gewehr-98",
+  };
+  const preferred = PRIMARY[familyId];
+  if (preferred) {
+    const w = getRifle(preferred);
+    if (w) return w;
+  }
   return RIFLES.find((r) => r.caliberId === familyId);
+}
+
+/** All rifles for a family (primary + researched seconds). */
+export function getRiflesForCaliber(familyId: string): Weapon[] {
+  return RIFLES.filter((r) => r.caliberId === familyId);
 }
 
 /** Effective ballistic pair: ammo subtype base + flat weapon bonuses. */
