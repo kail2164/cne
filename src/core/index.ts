@@ -30,7 +30,9 @@ export {
   withdrawItems,
 } from "./warehouse.js";
 
-export { setFactoryAllocation, runFactoryTick } from "./factory.js";
+export { setFactoryProduct, resolveFactoryMonth } from "./factory.js";
+
+export { endTurn, formatDate } from "./turn.js";
 
 export {
   companyTroopCount,

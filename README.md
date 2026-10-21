@@ -13,10 +13,9 @@ Army-building game where the player takes part in **multiple conflicts** over ti
 Pure TypeScript core (`src/core`) + CLI adapter (`src/index.ts`):
 
 1. Pick a starting **caliber family** (unlocks matching bolt-action)
-2. Allocate **factory** lines (ammo / rifles) and run production ticks
-3. Stock the **warehouse** (volume/weight capped)
-4. **Recruit** a company and issue ammo loadout
-5. Accept a **Local** contract and watch a **timed combat log**
+2. Set the **factory** to one product (`ammo` or `rifles`) — **money only**, locked for the month
+3. **End turn** → production resolves and the calendar advances (**1 cycle = 1 month**)
+4. **Recruit** / issue loadout / fight a **Local** contract (combat uses mission ticks; month only advances on end turn)
 
 Research trees, vehicles/garages, and higher contract tiers are stubbed for later phases. Architecture keeps game rules out of the UI so Phaser/Pixi/React can sit on the same core later.
 
@@ -32,13 +31,15 @@ npm install
 
 ## Play
 
-Interactive Phase 1 loop:
+Interactive (menu includes **End turn**):
 
 ```bash
 npm start
 ```
 
-Non-interactive demo (no prompts):
+In the menu: choose **2) End turn** to resolve factory output and advance one month. You can end multiple turns at once when prompted.
+
+Non-interactive demo:
 
 ```bash
 npm run demo
@@ -54,6 +55,7 @@ src/
     campaign.ts
     warehouse.ts
     factory.ts
+    turn.ts
     barracks.ts
     logistics.ts
     combat.ts
@@ -86,6 +88,13 @@ Weight caps agility (lighter↑) and strength (heavier↑). Stamina ≤ 0 → **
 Loadout includes `gearIds[]` alongside weapon/ammo.  
 **Live:** accuracy / light str+agi / experience / exhaustion + stamina drain.  
 **Deferred:** perk catalog, food-from-weight, gear encumbrance, HP wounds, salary ticks — see `soldier-stats-schema`.
+
+## Turns & factory (OpenSpec `turn-based-factory-months`)
+
+- **Turn-based:** manage during the month, then end turn → new cycle.
+- **1 cycle = 1 month** (`year` / `month` / `turn` on `GameState`).
+- **Factory:** one product at a time, funds only, product locked until you end the turn.
+- Combat `durationMinutes` / ticks are mission-internal and do not advance the calendar.
 
 ## Systems stats (OpenSpec `systems-stats-schema`)
 

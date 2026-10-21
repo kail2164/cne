@@ -221,14 +221,20 @@ export interface Soldier {
   woundedRestTicks: number;
 }
 
-export interface FactoryLine {
-  product: ProductLine;
-  allocation: number;
-}
+/** Single factory product for the current monthly cycle. */
+export type FactoryProduct = "ammo" | "rifles";
 
-export interface FactoryAllocation {
-  ammo: number;
-  rifles: number;
+/**
+ * Simplified factory: one product at a time, money-only, locked until end turn.
+ * @deprecated FactoryLine / %-splits removed from play.
+ */
+export interface FactoryState {
+  /** Product chosen for this cycle; null = idle. */
+  product: FactoryProduct | null;
+  /** Once true, product cannot change until endTurn. */
+  locked: boolean;
+  /** Capacity points resolved once per month on end turn. */
+  monthlyCapacity: number;
 }
 
 export type StockKind = "raw_materials" | "weapon" | "ammo";
@@ -287,12 +293,16 @@ export interface Company {
 }
 
 export interface GameState {
-  year: 1910;
+  /** Calendar year (advances on end turn). */
+  year: number;
+  /** Calendar month 1–12; 1 cycle = 1 month. */
+  month: number;
+  /** Absolute turn/cycle index (starts at 1). */
+  turn: number;
   funds: number;
   selectedCaliberId: CaliberId | null;
   warehouse: Warehouse;
-  factoryAllocation: FactoryAllocation;
-  factoryCapacityPerTick: number;
+  factory: FactoryState;
   company: Company;
   /** Army size cap from barracks / buildings. */
   barracksPopSlots: number;
@@ -340,11 +350,19 @@ export interface ReadinessReport {
   failures: string[];
 }
 
-export interface ProductionTickResult {
+export interface CycleProductionResult {
   producedAmmo: number;
   producedRifles: number;
   fundsSpent: number;
-  materialsSpent: number;
   shortfalls: string[];
   warehouseNotes: string[];
+}
+
+export interface EndTurnResult {
+  production: CycleProductionResult;
+  previousMonth: number;
+  previousYear: number;
+  month: number;
+  year: number;
+  turn: number;
 }

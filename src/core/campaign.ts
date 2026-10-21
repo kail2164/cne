@@ -13,7 +13,9 @@ function materialStock(qty: number): StockEntry {
 
 export function createCampaign(companyName = "1st Provisional Company"): GameState {
   return {
-    year: 1910,
+    year: START.startYear,
+    month: START.startMonth,
+    turn: 1,
     funds: START.funds,
     selectedCaliberId: null,
     warehouse: {
@@ -23,8 +25,11 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
       maxVolume: START.warehouseMaxVolume,
       stocks: [materialStock(START.rawMaterials)],
     },
-    factoryAllocation: { ammo: 0.6, rifles: 0.4 },
-    factoryCapacityPerTick: START.factoryCapacityPerTick,
+    factory: {
+      product: null,
+      locked: false,
+      monthlyCapacity: START.factoryMonthlyCapacity,
+    },
     company: { name: companyName, soldiers: [] },
     barracksPopSlots: START.barracksPopSlots,
     squads: [],
