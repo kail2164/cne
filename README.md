@@ -73,6 +73,12 @@ openspec status --change phase1-1910-text-prototype
 
 In Cursor chat: `/opsx-propose`, `/opsx-apply`, etc.
 
+## Weapon stats
+
+`Weapon` carries a full 1910 ballistics/handling profile (m/s, MoA, ranges, rpm, %, kg, mm, etc.).  
+**Live in Phase 1 combat:** `damage`, `fireRateRpm`, `reliabilityPct` (plus logistics `productionCost` / `weight`).  
+**Schema ready, sim deferred:** MoA/range hit chance, wear, recoil, handling, reload cadence — see OpenSpec change `weapon-stats-schema`.
+
 ## Status
 
 Phase 1 MVP is playable via CLI. Balance numbers are tunable constants in `src/core/catalog.ts`.

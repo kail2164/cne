@@ -6,6 +6,7 @@ export {
   START,
   LOCAL_CONTRACT,
   LOCKED_TIERS,
+  WEAPON_STATS_COMBAT_LIVE,
   getCaliber,
   getRifle,
   getRifleForCaliber,
@@ -31,6 +32,7 @@ export {
   companyTroopCount,
   companyTotalAmmo,
   companyPower,
+  soldierWeaponFactor,
   recruitSoldiers,
   issueCompanyAmmo,
 } from "./barracks.js";

@@ -49,13 +49,19 @@ function applyCasualties(soldiers: Soldier[], count: number): number {
   return killed;
 }
 
+/**
+ * Phase 1 firepower: damage + caliber stopping power × fire-rate/reliability.
+ * Deferred (schema present, unused here): MoA/range bands, wear, recoil, handling, reloadSeconds.
+ */
 function firepower(soldiers: Soldier[]): number {
   return living(soldiers).reduce((sum, s) => {
     if (!s.loadout) return sum;
     const w = getRifle(s.loadout.weaponId);
     const c = getCaliber(s.loadout.ammoCaliberId);
     if (!w || !c) return sum;
-    return sum + w.basePower + c.stoppingPower;
+    const fireFactor = Math.min(1.3, Math.max(0.7, w.fireRateRpm / 15));
+    const reliFactor = Math.min(1, Math.max(0.5, w.reliabilityPct / 100));
+    return sum + (w.damage + c.stoppingPower) * fireFactor * reliFactor;
   }, 0);
 }
 
