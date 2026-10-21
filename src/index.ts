@@ -2,29 +2,39 @@ import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import {
   COMPLETIONS_PER_TIER,
+  FOODS,
   LOAD_SUBTYPE_LABEL,
   LOAD_SUBTYPES,
   LOCAL_CONTRACT,
+  armSoldiers,
   companyPower,
+  companyReserveCount,
   companyTotalAmmo,
   companyTroopCount,
   createCampaign,
   describeBoard,
+  describeOrg,
   endTurn,
+  formFireTeam,
+  formSquadFromTeams,
   formatDate,
   getContract,
+  getFood,
   getQuantity,
   getSelectedAmmo,
   getTierProgress,
   issueCompanyAmmo,
   listBoardContracts,
+  listSoldiers,
   listStartingCalibers,
+  livingPop,
   parseLoadSubtype,
   recruitSoldiers,
   remainingCapacity,
   selectCaliber,
   setFactoryProduct,
   setLoadSubtype,
+  setMealPlan,
   startContract,
   type CaliberId,
   type FactoryProduct,
@@ -47,8 +57,12 @@ function printStatus(state: GameState): void {
   console.log(
     `${formatDate(state)} | funds $${state.funds.toFixed(0)} | factory: ${product} (${lock}) | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}${loadNote}`,
   );
+  const meal = getFood(state.mealPlanId);
   console.log(
     `  Tier: ${tier.currentLabel} | next unlock ${tier.completionsTowardNext}/${tier.completionsRequired}${tier.nextLabel ? ` → ${tier.nextLabel}` : " (max)"} | wins ${tier.jobsCompletedTotal}`,
+  );
+  console.log(
+    `  Roster: ${livingPop(state)}/${state.barracksPopSlots} pop | armed ${companyTroopCount(state)} | reserve ${companyReserveCount(state)} | meal ${meal?.name ?? state.mealPlanId}`,
   );
   if (state.activeMission) {
     const c = getContract(state.activeMission.contractId);
@@ -156,20 +170,24 @@ function runDemo(): void {
   state = recruit.state;
   console.log(`\n4) ${recruit.message}`);
 
+  const armed = armSoldiers(state);
+  state = armed.state;
+  console.log(`5) ${armed.message}`);
+
   const loadout = issueCompanyAmmo(state, 35);
   state = loadout.state;
-  console.log(`5) ${loadout.message}`);
+  console.log(`6) ${loadout.message}`);
   console.log(
-    `   Readiness: ${companyTroopCount(state)} troops, power ${companyPower(state).toFixed(1)}, ammo ${companyTotalAmmo(state)}`,
+    `   Readiness: ${companyTroopCount(state)} armed, ${companyReserveCount(state)} reserve, power ${companyPower(state).toFixed(1)}, ammo ${companyTotalAmmo(state)}`,
   );
 
   printBoard(state);
   const accept = startContract(state, LOCAL_CONTRACT.id);
   state = accept.state;
-  console.log(`\n6) ${accept.message}`);
+  console.log(`\n7) ${accept.message}`);
   printStatus(state);
 
-  console.log("\n7) Ending turns until mission resolves...");
+  console.log("\n8) Ending turns until mission resolves...");
   let guard = 0;
   while (state.activeMission && guard < 10) {
     state = doEndTurns(state, 1);
@@ -214,12 +232,18 @@ async function interactive(): Promise<void> {
     console.log(`
 Actions:
   1) Set factory product (ammo | rifles)
-  2) End turn (+1 month; factory + mission)
-  3) Recruit
-  4) Issue ammo loadout
-  5) Accept job from board (by number)
-  6) Set load subtype (FMJ / hollow / AP)
-  7) Quit
+  2) End turn (+1 month; factory + mission + upkeep)
+  3) Recruit (money + pop → reserve)
+  4) Arm reserves (rifle + magazine)
+  5) Issue ammo loadout
+  6) Accept job from board (by number)
+  7) Set load subtype (FMJ / hollow / AP)
+  8) List roster
+  9) Set meal plan
+  10) Form fire team (roster #s, 3–5)
+  11) Form squad (fire team ids + CDR roster #)
+  12) List org
+  13) Quit
 `);
     const choice = await askNumber(rl, "Choice [2]: ", 2);
     switch (choice) {
@@ -246,6 +270,12 @@ Actions:
         break;
       }
       case 4: {
+        const r = armSoldiers(state);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 5: {
         const per = await askNumber(
           rl,
           `Ammo per soldier [${LOCAL_CONTRACT.recommendedAmmoPerSoldier}]: `,
@@ -256,7 +286,7 @@ Actions:
         console.log(r.message);
         break;
       }
-      case 5: {
+      case 6: {
         const board = listBoardContracts(state);
         if (board.length === 0) {
           console.log("Board empty.");
@@ -269,7 +299,7 @@ Actions:
         console.log(r.message);
         break;
       }
-      case 6: {
+      case 7: {
         console.log(
           "  Loads: " +
             LOAD_SUBTYPES.map(
@@ -287,7 +317,64 @@ Actions:
         console.log(r.message);
         break;
       }
-      case 7:
+      case 8: {
+        const lines = listSoldiers(state);
+        if (lines.length === 0) console.log("  (empty roster)");
+        else lines.forEach((l) => console.log(`  ${l}`));
+        break;
+      }
+      case 9: {
+        FOODS.filter((f) => !f.recipeId || state.researchUnlocked.includes(f.recipeId)).forEach(
+          (f, i) =>
+            console.log(
+              `  ${i + 1}. ${f.id} — ${f.name} ($${f.productionCost}, hap ${f.happiness})`,
+            ),
+        );
+        const raw = await ask(rl, "Meal id [army-stew]: ", "army-stew");
+        const r = setMealPlan(state, raw);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 10: {
+        const lines = listSoldiers(state);
+        lines.forEach((l) => console.log(`  ${l}`));
+        const raw = await ask(rl, "Roster #s (comma, 3–5) e.g. 1,2,3,4: ", "");
+        const living = state.company.soldiers.filter((s) => s.alive);
+        const ids = raw
+          .split(/[,\s]+/)
+          .map((x) => Number(x.trim()))
+          .filter((n) => n >= 1 && n <= living.length)
+          .map((n) => living[n - 1]!.id);
+        const r = formFireTeam(state, ids);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 11: {
+        describeOrg(state).forEach((l) => console.log(`  ${l}`));
+        listSoldiers(state).forEach((l) => console.log(`  ${l}`));
+        const teamsRaw = await ask(rl, "Fire team ids (comma, 2–3): ", "");
+        const teamIds = teamsRaw.split(/[,\s]+/).map((x) => x.trim()).filter(Boolean);
+        const cdrNum = await askNumber(rl, "Commander roster #: ", 1);
+        const living = state.company.soldiers.filter((s) => s.alive);
+        const cdr = living[Math.min(Math.max(cdrNum, 1), living.length) - 1];
+        if (!cdr) {
+          console.log("Bad commander #.");
+          break;
+        }
+        const r = formSquadFromTeams(state, teamIds, cdr.id);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 12: {
+        const lines = describeOrg(state);
+        if (lines.length === 0) console.log("  (no formations)");
+        else lines.forEach((l) => console.log(`  ${l}`));
+        break;
+      }
+      case 13:
         playing = false;
         break;
       default:

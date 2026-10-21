@@ -1,4 +1,5 @@
 import { effectiveDamage, effectivePenetration, getCaliber, getRifle } from "./catalog.js";
+import { isArmed } from "./gear.js";
 import { soldierCombatFactor } from "./soldier.js";
 import type {
   CombatType,
@@ -17,9 +18,9 @@ function weaponFireFactor(weaponId: string): number {
   return fireFactor * reliFactor;
 }
 
-/** Living combat-ready soldiers (not wounded). */
+/** Living armed combatants (not wounded reserves). */
 function combatants(soldiers: Soldier[]): Soldier[] {
-  return soldiers.filter((s) => s.alive && s.duty !== "wounded");
+  return soldiers.filter((s) => s.alive && s.duty !== "wounded" && isArmed(s));
 }
 
 export type EscortZone = "frontline" | "backline";

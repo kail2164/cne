@@ -89,20 +89,41 @@ export interface SquadConsumption {
   suppliesPerDay: number;
 }
 
-export interface Squad {
+/** Infantry-only echelons (vehicles excluded). */
+export type OrgEchelon =
+  | "fire_team"
+  | "squad"
+  | "platoon"
+  | "company"
+  | "battalion"
+  | "brigade"
+  | "division";
+
+/**
+ * Infantry formation node.
+ * Fire teams hold soldiers; higher echelons hold child units + a roster commander.
+ */
+export interface OrgUnit {
   id: string;
   name: string;
-  /** Configurable fire-team / squad size target. */
+  echelon: OrgEchelon;
+  /** Target headcount for fire teams (3–5); advisory for higher echelons. */
   size: number;
+  /** Direct soldier members (fire teams; higher echelons usually empty except CDR tracked separately). */
   soldierIds: string[];
+  /** Child formation ids. */
+  childUnitIds: string[];
+  /** Commander billet — must be a living soldier on the roster. */
+  commanderSoldierId: string | null;
+  parentUnitId: string | null;
   doctrine: Doctrine;
   appointedWeaponId: string | null;
-  /** Parent group when combined into a larger formation. */
-  parentSquadId: string | null;
   consumption: SquadConsumption;
-  /** Field experience by terrain (success-chance bonus later). */
   fieldExperience: Partial<Record<CombatTerrain, number>>;
 }
+
+/** @deprecated Prefer OrgUnit — kept for older call sites. */
+export type Squad = OrgUnit;
 
 export interface ContractItemReward {
   itemId: string;
@@ -188,8 +209,12 @@ export interface PerkDef {
 export interface GearDef {
   id: string;
   name: string;
-  /** Carried mass in kg (encumbrance later). */
+  /** Carried mass in kg. */
   weightKg: number;
+  /** Extra ammo rounds capacity granted by this gear. */
+  ammoCapacityBonus: number;
+  /** Soft armor contribution (0–100). */
+  armorBonus: number;
 }
 
 /**
@@ -228,7 +253,7 @@ export interface Soldier {
   perkIds: string[];
   /** Barracks duty / readiness state. */
   duty: BarrackDuty;
-  /** Squad assignment; null if unassigned reserve. */
+  /** Assigned fire-team / unit id; null if unassigned. */
   squadId: string | null;
   /** Remaining rest ticks while wounded (0 if healthy). */
   woundedRestTicks: number;
@@ -337,7 +362,10 @@ export interface GameState {
   company: Company;
   /** Army size cap from barracks / buildings. */
   barracksPopSlots: number;
-  squads: Squad[];
+  /** Infantry formations (fire team → division). */
+  squads: OrgUnit[];
+  /** Active meal plan food id (monthly upkeep). */
+  mealPlanId: string;
   garage: Vehicle[];
   researchUnlocked: string[];
   /** Current contract mission, or null. */
@@ -417,10 +445,20 @@ export interface CycleProductionResult {
   warehouseNotes: string[];
 }
 
+export interface UpkeepResult {
+  salaryPaid: number;
+  foodPaid: number;
+  salaryShort: boolean;
+  foodShort: boolean;
+  deserted: number;
+  loyaltyNotes: string[];
+}
+
 export interface EndTurnResult {
   production: CycleProductionResult;
   combatNote: string | null;
   missionResolved: CombatResult | null;
+  upkeep: UpkeepResult | null;
   previousMonth: number;
   previousYear: number;
   month: number;

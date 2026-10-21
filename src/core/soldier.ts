@@ -13,9 +13,6 @@ export const STAMINA_DRAIN_PER_TICK = 8;
 /** Empty perk catalog — definitions land in a later change. */
 export const PERKS: PerkDef[] = [];
 
-/** Empty gear catalog — kit/armor stubs later. */
-export const GEARS: { id: string; name: string; weightKg: number }[] = [];
-
 export function clampWeightKg(weightKg: number): number {
   return Math.min(WEIGHT_MAX_KG, Math.max(WEIGHT_MIN_KG, weightKg));
 }

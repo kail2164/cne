@@ -1,5 +1,6 @@
 import { progressCombatMonth } from "./combat.js";
 import { resolveFactoryMonth } from "./factory.js";
+import { resolveMonthlyUpkeep } from "./upkeep.js";
 import type { ActionResult, BarrackDuty, EndTurnResult, GameState } from "./types.js";
 
 function advanceCalendar(year: number, month: number): { year: number; month: number } {
@@ -27,7 +28,7 @@ function tickWounded(state: GameState): GameState {
 
 /**
  * End turn (= 1 month):
- * factory resolve → unlock factory → combat month step (if mission) → calendar → wounded tick.
+ * factory → unlock → combat month → upkeep (salary/food/desertion) → calendar → wounded.
  */
 export function endTurn(state: GameState): ActionResult<EndTurnResult> {
   const previousYear = state.year;
@@ -50,6 +51,9 @@ export function endTurn(state: GameState): ActionResult<EndTurnResult> {
   const combatNote = hadMission ? combat.message : null;
   const missionResolved = combat.data?.resolved ?? null;
 
+  const upkeep = resolveMonthlyUpkeep(next);
+  next = upkeep.state;
+
   const cal = advanceCalendar(next.year, next.month);
   next = {
     ...next,
@@ -62,10 +66,11 @@ export function endTurn(state: GameState): ActionResult<EndTurnResult> {
 
   const label = `${cal.year}-${String(cal.month).padStart(2, "0")}`;
   const combatPart = combatNote ? ` ${combatNote}` : "";
+  const upkeepPart = upkeep.message ? ` ${upkeep.message}` : "";
   return {
     ok: true,
     state: next,
-    message: `End turn → ${label} (turn ${next.turn}). ${production.message}.${combatPart}`,
+    message: `End turn → ${label} (turn ${next.turn}). ${production.message}.${combatPart}${upkeepPart}`,
     data: {
       production: production.data ?? {
         producedAmmo: 0,
@@ -76,6 +81,7 @@ export function endTurn(state: GameState): ActionResult<EndTurnResult> {
       },
       combatNote,
       missionResolved,
+      upkeep: upkeep.data ?? null,
       previousMonth,
       previousYear,
       month: next.month,

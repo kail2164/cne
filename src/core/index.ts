@@ -64,13 +64,19 @@ export { endTurn, formatDate } from "./turn.js";
 
 export {
   companyTroopCount,
+  companyReserveCount,
   companyTotalAmmo,
   companyPower,
   soldierWeaponFactor,
   livingPop,
   countByDuty,
+  listSoldiers,
   recruitSoldiers,
+  armSoldiers,
   issueCompanyAmmo,
+  isArmed,
+  carryCapacityKg,
+  describeCarry,
 } from "./barracks.js";
 
 export {
@@ -110,7 +116,6 @@ export {
   MAX_PERK_SLOTS,
   STAMINA_DRAIN_PER_TICK,
   PERKS,
-  GEARS,
   clampWeightKg,
   agilityCapForWeight,
   strengthCapForWeight,
@@ -127,6 +132,14 @@ export {
 } from "./soldier.js";
 
 export {
+  GEARS,
+  getGear,
+  carriedWeightKg,
+  maxAmmoCarry,
+  canCarryAmmo,
+} from "./gear.js";
+
+export {
   doctrineConsumption,
   createSquad,
   combineSquads,
@@ -134,5 +147,25 @@ export {
   ensureDefaultSquadFilled,
   terrainExperienceBonus,
 } from "./composition.js";
+
+export {
+  ECHELON_LABEL,
+  ECHELON_CHILD_RANGE,
+  FIRE_TEAM_SIZE,
+  createOrgUnit,
+  formFireTeam,
+  formSquadFromTeams,
+  formHigherEchelon,
+  listFormations,
+  describeOrg,
+} from "./org.js";
+
+export {
+  MEALS_PER_MONTH,
+  LOYALTY_DESERT_THRESHOLD,
+  setMealPlan,
+  resolveMonthlyUpkeep,
+  applyMissionMorale,
+} from "./upkeep.js";
 
 export { FOODS, getFood, isFoodUnlocked } from "./food.js";

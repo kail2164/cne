@@ -49,6 +49,7 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
     company: { name: companyName, soldiers: [] },
     barracksPopSlots: START.barracksPopSlots,
     squads: [],
+    mealPlanId: "army-stew",
     garage: [],
     researchUnlocked: [],
     activeMission: null,

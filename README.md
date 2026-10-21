@@ -96,7 +96,8 @@ Loadout includes `gearIds[]` alongside weapon/ammo.
 - **Contracts:** board ≤10 jobs; `turnsNeeded` months; accept starts a mission; each end turn = one combat month.
 - **Tiers:** Local → Provinces → Interstates → National → Global; **20 victories** to unlock the next tier; higher tiers need stronger army and pay better.
 - **Power / engagement:** company power from size + loadout quality + morale + experience; monthly fights use initiative by combat type, hit/range/pen × size damage, and very low incoming when out-ranging or out-armoring (see `power-combat-engagement`).
-- Try: `npm start` → view board → **5) Accept** by # → **2) End turn** until resolved (or `npm run demo`).
+- **Barracks / org:** recruit = money + pop (reserve); arm = rifle + magazine; monthly salary + meals; loyalty/desertion; infantry hierarchy fire team → division (CLI: fire team + squad). See `barracks-manpower-org`.
+- Try: `npm start` → recruit → arm → issue ammo → board accept → end turns (or `npm run demo`).
 
 ## Systems stats (OpenSpec `systems-stats-schema`)
 

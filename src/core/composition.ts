@@ -1,9 +1,10 @@
+import { isArmed } from "./gear.js";
 import type {
   CombatTerrain,
   Doctrine,
   GameState,
+  OrgUnit,
   Soldier,
-  Squad,
   SquadConsumption,
 } from "./types.js";
 
@@ -21,33 +22,42 @@ export function doctrineConsumption(doctrine: Doctrine): SquadConsumption {
   }
 }
 
+/** Legacy flat squad helper — creates an OrgUnit at squad echelon without children. */
 export function createSquad(
   id: string,
   name: string,
   size: number,
   doctrine: Doctrine = "balance",
   appointedWeaponId: string | null = null,
-): Squad {
+): OrgUnit {
   return {
     id,
     name,
+    echelon: "squad",
     size: Math.max(1, Math.floor(size)),
     soldierIds: [],
+    childUnitIds: [],
+    commanderSoldierId: null,
+    parentUnitId: null,
     doctrine,
     appointedWeaponId,
-    parentSquadId: null,
     consumption: doctrineConsumption(doctrine),
     fieldExperience: {},
   };
 }
 
 export function combineSquads(
-  child: Squad,
-  parent: Squad,
-): { child: Squad; parent: Squad } {
+  child: OrgUnit,
+  parent: OrgUnit,
+): { child: OrgUnit; parent: OrgUnit } {
   return {
-    child: { ...child, parentSquadId: parent.id },
-    parent: { ...parent },
+    child: { ...child, parentUnitId: parent.id },
+    parent: {
+      ...parent,
+      childUnitIds: parent.childUnitIds.includes(child.id)
+        ? parent.childUnitIds
+        : [...parent.childUnitIds, child.id],
+    },
   };
 }
 
@@ -58,23 +68,22 @@ export function assignSoldiersToSquad(
 ): { ok: boolean; state: GameState; message: string } {
   const squad = state.squads.find((s) => s.id === squadId);
   if (!squad) {
-    return { ok: false, state, message: `Unknown squad: ${squadId}` };
+    return { ok: false, state, message: `Unknown unit: ${squadId}` };
   }
 
   const room = Math.max(0, squad.size - squad.soldierIds.length);
   const take = soldierIds.slice(0, room);
   if (take.length === 0) {
-    return { ok: false, state, message: "Squad is full or no soldiers provided." };
+    return { ok: false, state, message: "Unit is full or no soldiers provided." };
   }
 
   const takeSet = new Set(take);
   const soldiers: Soldier[] = state.company.soldiers.map((s) => {
     if (!takeSet.has(s.id) || !s.alive) return s;
-    const armed = Boolean(s.loadout?.weaponId);
     return {
       ...s,
       squadId,
-      duty: armed ? "ready" : "assigned",
+      duty: isArmed(s) ? "ready" : "assigned",
       woundedRestTicks: 0,
     };
   });
@@ -96,7 +105,10 @@ export function assignSoldiersToSquad(
   };
 }
 
-/** Ensure a default squad exists and fill it with unassigned armed troops. */
+/**
+ * Demo helper: put unassigned armed troops into a holding squad so logistics
+ * still sees assigned formations. Prefer formFireTeam in interactive play.
+ */
 export function ensureDefaultSquadFilled(
   state: GameState,
   size = 20,
@@ -104,9 +116,9 @@ export function ensureDefaultSquadFilled(
   appointedWeaponId: string | null = null,
 ): GameState {
   let next = state;
-  let squad = next.squads.find((s) => s.id === "squad-1");
+  let squad = next.squads.find((s) => s.id === "holding-1");
   if (!squad) {
-    squad = createSquad("squad-1", "1st Squad", size, doctrine, appointedWeaponId);
+    squad = createSquad("holding-1", "Holding Pool", size, doctrine, appointedWeaponId);
     next = { ...next, squads: [...next.squads, squad] };
   } else if (appointedWeaponId && !squad.appointedWeaponId) {
     next = {
@@ -118,16 +130,16 @@ export function ensureDefaultSquadFilled(
   }
 
   const unassigned = next.company.soldiers
-    .filter((s) => s.alive && s.duty === "unassigned" && s.loadout)
+    .filter((s) => s.alive && s.squadId == null && isArmed(s))
     .map((s) => s.id);
   if (unassigned.length === 0) return next;
 
-  const result = assignSoldiersToSquad(next, "squad-1", unassigned);
+  const result = assignSoldiersToSquad(next, "holding-1", unassigned);
   return result.ok ? result.state : next;
 }
 
 export function terrainExperienceBonus(
-  squad: Squad,
+  squad: OrgUnit,
   terrain: CombatTerrain,
 ): number {
   return Math.min(15, squad.fieldExperience[terrain] ?? 0);
