@@ -93,8 +93,9 @@ Loadout includes `gearIds[]` alongside weapon/ammo.
 
 - **1 cycle = 1 month.** End turn advances the calendar and resolves factory + active mission combat.
 - **Factory:** one product (ammo|rifles), money only, locked until end turn.
-- **Contracts:** `turnsNeeded` months; accept starts a mission; each end turn = one combat month step (no separate minute-tick loop).
-- Try: `npm start` → accept local contract → **2) End turn** until mission resolves (or `npm run demo`).
+- **Contracts:** board ≤10 jobs; `turnsNeeded` months; accept starts a mission; each end turn = one combat month.
+- **Tiers:** Local → Provinces → Interstates → National → Global; **20 victories** to unlock the next tier; higher tiers need stronger army and pay better.
+- Try: `npm start` → view board → **5) Accept** by # → **2) End turn** until resolved (or `npm run demo`).
 
 ## Systems stats (OpenSpec `systems-stats-schema`)
 

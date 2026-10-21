@@ -326,6 +326,14 @@ export interface GameState {
   researchUnlocked: string[];
   /** Current contract mission, or null. */
   activeMission: ActiveMission | null;
+  /** Highest unlocked regional tier. */
+  currentTier: ContractTier;
+  /** Victorious jobs counted toward unlocking the next tier (0–20). */
+  jobsCompletedTowardNext: number;
+  /** Lifetime victorious job completions. */
+  jobsCompletedTotal: number;
+  /** Up to 10 available contract ids. */
+  contractBoard: string[];
 }
 
 export interface ActionResult<T = void> {

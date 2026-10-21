@@ -1,3 +1,4 @@
+import { fillContractBoard } from "./board.js";
 import { CALIBERS, START, getRifleForCaliber } from "./catalog.js";
 import type { ActionResult, CaliberId, GameState, StockEntry } from "./types.js";
 
@@ -12,7 +13,7 @@ function materialStock(qty: number): StockEntry {
 }
 
 export function createCampaign(companyName = "1st Provisional Company"): GameState {
-  return {
+  const base: GameState = {
     year: START.startYear,
     month: START.startMonth,
     turn: 1,
@@ -36,7 +37,12 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
     garage: [],
     researchUnlocked: [],
     activeMission: null,
+    currentTier: "local",
+    jobsCompletedTowardNext: 0,
+    jobsCompletedTotal: 0,
+    contractBoard: [],
   };
+  return fillContractBoard(base);
 }
 
 export function listStartingCalibers() {

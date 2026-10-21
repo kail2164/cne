@@ -1,17 +1,20 @@
 import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import {
+  COMPLETIONS_PER_TIER,
   LOCAL_CONTRACT,
   companyPower,
   companyTotalAmmo,
   companyTroopCount,
   createCampaign,
+  describeBoard,
   endTurn,
   formatDate,
   getContract,
   getQuantity,
+  getTierProgress,
   issueCompanyAmmo,
-  listContracts,
+  listBoardContracts,
   listStartingCalibers,
   recruitSoldiers,
   remainingCapacity,
@@ -31,8 +34,12 @@ function printStatus(state: GameState): void {
   const rem = remainingCapacity(state.warehouse);
   const lock = state.factory.locked ? "locked" : "open";
   const product = state.factory.product ?? "idle";
+  const tier = getTierProgress(state);
   console.log(
     `${formatDate(state)} | funds $${state.funds.toFixed(0)} | factory: ${product} (${lock}) | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}`,
+  );
+  console.log(
+    `  Tier: ${tier.currentLabel} | next unlock ${tier.completionsTowardNext}/${tier.completionsRequired}${tier.nextLabel ? ` → ${tier.nextLabel}` : " (max)"} | wins ${tier.jobsCompletedTotal}`,
   );
   if (state.activeMission) {
     const c = getContract(state.activeMission.contractId);
@@ -47,6 +54,18 @@ function printStatus(state: GameState): void {
     if (s.kind === "raw_materials") continue;
     console.log(`  - ${s.kind}:${s.itemId} × ${s.quantity}`);
   }
+}
+
+function printBoard(state: GameState): void {
+  console.log(`\nContract board (${state.contractBoard.length}/10):`);
+  const lines = describeBoard(state);
+  if (lines.length === 0) console.log("  (empty)");
+  else lines.forEach((l) => console.log(`  ${l}`));
+  const tier = getTierProgress(state);
+  console.log(
+    `  Progress to next tier: ${tier.completionsTowardNext}/${COMPLETIONS_PER_TIER}` +
+      (tier.nextLabel ? ` (${tier.nextLabel})` : " — Global max"),
+  );
 }
 
 async function ask(rl: readline.Interface, prompt: string, fallback = ""): Promise<string> {
@@ -125,6 +144,7 @@ function runDemo(): void {
     `   Readiness: ${companyTroopCount(state)} troops, power ${companyPower(state).toFixed(1)}, ammo ${companyTotalAmmo(state)}`,
   );
 
+  printBoard(state);
   const accept = startContract(state, LOCAL_CONTRACT.id);
   state = accept.state;
   console.log(`\n6) ${accept.message}`);
@@ -171,13 +191,14 @@ async function interactive(): Promise<void> {
   let playing = true;
   while (playing) {
     printStatus(state);
+    printBoard(state);
     console.log(`
 Actions:
   1) Set factory product (ammo | rifles)
-  2) End turn (+1 month; advances factory + active mission)
+  2) End turn (+1 month; factory + mission)
   3) Recruit
   4) Issue ammo loadout
-  5) Accept local contract (${LOCAL_CONTRACT.turnsNeeded} turns needed)
+  5) Accept job from board (by number)
   6) Quit
 `);
     const choice = await askNumber(rl, "Choice [2]: ", 2);
@@ -216,13 +237,14 @@ Actions:
         break;
       }
       case 5: {
-        listContracts().forEach((c, i) => {
-          const lock = c.tier === "local" ? "" : " [LOCKED]";
-          console.log(
-            `  ${i + 1}. ${c.name} — ${c.turnsNeeded} turn(s) needed (${c.tier})${lock}`,
-          );
-        });
-        const r = startContract(state, LOCAL_CONTRACT.id);
+        const board = listBoardContracts(state);
+        if (board.length === 0) {
+          console.log("Board empty.");
+          break;
+        }
+        const idx = await askNumber(rl, `Board job # [1]: `, 1);
+        const job = board[Math.min(Math.max(idx, 1), board.length) - 1]!;
+        const r = startContract(state, job.id);
         state = r.state;
         console.log(r.message);
         break;

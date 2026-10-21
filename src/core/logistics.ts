@@ -1,11 +1,14 @@
-import { listContracts } from "./catalog.js";
+import {
+  getContract,
+  isTierUnlocked,
+  listBoardContracts,
+  tierLabel,
+} from "./board.js";
 import { companyPower, companyTotalAmmo, companyTroopCount } from "./barracks.js";
 import { terrainExperienceBonus } from "./composition.js";
 import type { ActionResult, Contract, GameState, ReadinessReport } from "./types.js";
 
-export function getContract(id: string): Contract | undefined {
-  return listContracts().find((c) => c.id === id);
-}
+export { getContract } from "./board.js";
 
 export function assessReadiness(state: GameState, contract: Contract): ReadinessReport {
   const troopCount = companyTroopCount(state);
@@ -13,8 +16,13 @@ export function assessReadiness(state: GameState, contract: Contract): Readiness
   const totalAmmo = companyTotalAmmo(state);
   const failures: string[] = [];
 
-  if (contract.tier !== "local") {
-    failures.push(`Contract tier "${contract.tier}" is locked in Phase 1`);
+  if (!isTierUnlocked(state, contract.tier)) {
+    failures.push(
+      `Tier "${tierLabel(contract.tier)}" locked (unlocked: ${tierLabel(state.currentTier)})`,
+    );
+  }
+  if (!state.contractBoard.includes(contract.id)) {
+    failures.push("Job is not on the current contract board");
   }
   if (troopCount < contract.manpowerRequired) {
     failures.push(
@@ -61,10 +69,6 @@ export function checkContractAcceptance(
   };
 }
 
-/**
- * Success chance 0–100: base + squad bonus − over-assign waste + terrain XP.
- * More squads help up to a point; excess burns resources for little gain (soft penalty).
- */
 export function estimateSuccessChance(state: GameState, contract: Contract): number {
   const assignedSquads = Math.max(
     1,
@@ -86,4 +90,11 @@ export function estimateSuccessChance(state: GameState, contract: Contract): num
   }
 
   return Math.round(Math.min(100, Math.max(5, chance)));
+}
+
+export function describeBoard(state: GameState): string[] {
+  return listBoardContracts(state).map((c, i) => {
+    const gate = `men ${c.manpowerRequired} / pwr ${c.minPower}`;
+    return `${i + 1}. [${c.tier}] ${c.name} — ${c.turnsNeeded} mo, $${c.cashReward}, ${gate}`;
+  });
 }

@@ -1,8 +1,8 @@
+import { applyJobResolution, getContract } from "./board.js";
 import { effectiveDamage, getCaliber, getRifle } from "./catalog.js";
 import {
   checkContractAcceptance,
   estimateSuccessChance,
-  getContract,
 } from "./logistics.js";
 import { STAMINA_DRAIN_PER_TICK, soldierCombatFactor } from "./soldier.js";
 import type {
@@ -200,11 +200,14 @@ function finalizeMission(
     next = st.state;
   }
 
+  const board = applyJobResolution(next, mission.contractId, won);
+  next = board.state;
+
   const summary = won
-    ? `Victory at ${contract.name} (success ~${mission.successChance}%). KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}, loot +$${lootFunds}.`
+    ? `Victory at ${contract.name} (success ~${mission.successChance}%). KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}, loot +$${lootFunds}. ${board.message}`
     : retreated
-      ? `Retreat from ${contract.name}. KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}.`
-      : `Defeat at ${contract.name}. KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}.`;
+      ? `Retreat from ${contract.name}. KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}. ${board.message}`
+      : `Defeat at ${contract.name}. KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}. ${board.message}`;
 
   const result: CombatResult = {
     won,

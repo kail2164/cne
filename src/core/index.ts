@@ -5,17 +5,33 @@ export {
   CALIBER_FAMILIES,
   RIFLES,
   START,
-  LOCAL_CONTRACT,
-  LOCKED_TIERS,
   WEAPON_STATS_COMBAT_LIVE,
   getCaliber,
   getCaliberFamily,
   getRifle,
   getRifleForCaliber,
-  listContracts,
   effectiveDamage,
   effectivePenetration,
 } from "./catalog.js";
+
+export {
+  BOARD_SIZE,
+  COMPLETIONS_PER_TIER,
+  TIER_ORDER,
+  CONTRACT_POOL,
+  LOCAL_CONTRACT,
+  tierIndex,
+  tierLabel,
+  isTierUnlocked,
+  nextTier,
+  getContract,
+  listContracts,
+  listBoardContracts,
+  fillContractBoard,
+  removeFromBoard,
+  getTierProgress,
+  applyJobResolution,
+} from "./board.js";
 
 export { createCampaign, listStartingCalibers, selectCaliber } from "./campaign.js";
 
@@ -46,10 +62,10 @@ export {
 } from "./barracks.js";
 
 export {
-  getContract,
   assessReadiness,
   checkContractAcceptance,
   estimateSuccessChance,
+  describeBoard,
 } from "./logistics.js";
 
 export { startContract, progressCombatMonth } from "./combat.js";

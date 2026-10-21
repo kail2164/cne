@@ -1,9 +1,4 @@
-import type {
-  AmmoCaliber,
-  CaliberFamily,
-  Contract,
-  Weapon,
-} from "./types.js";
+import type { AmmoCaliber, CaliberFamily, Weapon } from "./types.js";
 
 export const CALIBER_FAMILIES: CaliberFamily[] = [
   { id: "762x54r", name: "7.62×54mmR family", variants: ["ball", "steel_tip", "tracer"] },
@@ -228,46 +223,6 @@ export const START = {
   startMonth: 1,
 } as const;
 
-export const LOCAL_CONTRACT: Contract = {
-  id: "local-border-patrol",
-  name: "Border Patrol Skirmish",
-  tier: "local",
-  blurb: "Drive bandits from the frontier rail spur. Local Region only.",
-  manpowerRequired: 12,
-  minPower: 140,
-  recommendedAmmoPerSoldier: 35,
-  oppositionHp: 380,
-  oppositionDamagePerTurn: 28,
-  turnsNeeded: 2,
-  cashReward: 400,
-  lootMaterials: 80,
-  itemRewards: [],
-  combatType: "offense",
-  terrain: "plains",
-  baseSuccessChance: 72,
-};
-
-export const LOCKED_TIERS: Contract[] = [
-  {
-    id: "province-locked",
-    name: "Provincial Relief Column",
-    tier: "province",
-    blurb: "Locked until later phases.",
-    manpowerRequired: 40,
-    minPower: 500,
-    recommendedAmmoPerSoldier: 50,
-    oppositionHp: 800,
-    oppositionDamagePerTurn: 40,
-    turnsNeeded: 4,
-    cashReward: 0,
-    lootMaterials: 0,
-    itemRewards: [],
-    combatType: "escort",
-    terrain: "forest",
-    baseSuccessChance: 55,
-  },
-];
-
 export function getCaliber(id: string): AmmoCaliber | undefined {
   return CALIBERS.find((c) => c.id === id);
 }
@@ -283,10 +238,6 @@ export function getRifle(id: string): Weapon | undefined {
 export function getRifleForCaliber(caliberId: string): Weapon | undefined {
   const cal = getCaliber(caliberId);
   return cal ? getRifle(cal.rifleId) : undefined;
-}
-
-export function listContracts(): Contract[] {
-  return [LOCAL_CONTRACT, ...LOCKED_TIERS];
 }
 
 /** Effective ballistic pair: caliber base + flat weapon bonuses. */
