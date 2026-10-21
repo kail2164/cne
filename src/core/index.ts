@@ -44,3 +44,26 @@ export {
 } from "./logistics.js";
 
 export { simulateCombat } from "./combat.js";
+
+export {
+  EXHAUSTION_FACTOR,
+  WEIGHT_MIN_KG,
+  WEIGHT_MAX_KG,
+  MAX_PERK_SLOTS,
+  STAMINA_DRAIN_PER_TICK,
+  PERKS,
+  GEARS,
+  clampWeightKg,
+  agilityCapForWeight,
+  strengthCapForWeight,
+  clampAgility,
+  clampStrength,
+  isExhausted,
+  exhaustionMultiplier,
+  maxAmmoForStrength,
+  sumPerkPercent,
+  assignPerk,
+  emptyLoadout,
+  createRecruitSoldier,
+  soldierCombatFactor,
+} from "./soldier.js";

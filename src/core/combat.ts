@@ -1,5 +1,6 @@
 import { getCaliber, getRifle } from "./catalog.js";
 import { checkContractAcceptance, getContract } from "./logistics.js";
+import { STAMINA_DRAIN_PER_TICK, soldierCombatFactor } from "./soldier.js";
 import type {
   ActionResult,
   CombatLogEntry,
@@ -12,7 +13,10 @@ import { storeAsMany } from "./warehouse.js";
 function cloneSoldiers(soldiers: Soldier[]): Soldier[] {
   return soldiers.map((s) => ({
     ...s,
-    loadout: s.loadout ? { ...s.loadout } : null,
+    perkIds: [...s.perkIds],
+    loadout: s.loadout
+      ? { ...s.loadout, gearIds: [...(s.loadout.gearIds ?? [])] }
+      : null,
   }));
 }
 
@@ -50,8 +54,8 @@ function applyCasualties(soldiers: Soldier[], count: number): number {
 }
 
 /**
- * Phase 1 firepower: damage + caliber stopping power × fire-rate/reliability.
- * Deferred (schema present, unused here): MoA/range bands, wear, recoil, handling, reloadSeconds.
+ * Phase 1 firepower: weapon damage/rate/reliability × soldier accuracy/str/agi/exp,
+ * with −40% when stamina depleted. Deferred: MoA/range, wear, full perk catalog, HP wounds.
  */
 function firepower(soldiers: Soldier[]): number {
   return living(soldiers).reduce((sum, s) => {
@@ -61,8 +65,23 @@ function firepower(soldiers: Soldier[]): number {
     if (!w || !c) return sum;
     const fireFactor = Math.min(1.3, Math.max(0.7, w.fireRateRpm / 15));
     const reliFactor = Math.min(1, Math.max(0.5, w.reliabilityPct / 100));
-    return sum + (w.damage + c.stoppingPower) * fireFactor * reliFactor;
+    return (
+      sum +
+      (w.damage + c.stoppingPower) * fireFactor * reliFactor * soldierCombatFactor(s)
+    );
   }, 0);
+}
+
+function drainStamina(soldiers: Soldier[]): void {
+  for (const s of living(soldiers)) {
+    s.stamina = Math.max(0, s.stamina - STAMINA_DRAIN_PER_TICK);
+  }
+}
+
+function restoreStamina(soldiers: Soldier[]): void {
+  for (const s of soldiers) {
+    if (s.alive) s.stamina = s.maxStamina;
+  }
 }
 
 function avgSupplyEfficiency(soldiers: Soldier[]): number {
@@ -119,6 +138,8 @@ export function simulateCombat(
     let spent = 0;
     let friendlyCasualties = 0;
 
+    const exhaustedBefore = living(soldiers).filter((s) => s.stamina <= 0).length;
+
     if (!ammoExhausted) {
       const eff = avgSupplyEfficiency(soldiers);
       const want = Math.max(1, Math.ceil(liveBefore / Math.max(0.5, eff)));
@@ -138,6 +159,11 @@ export function simulateCombat(
         retreated = true;
         note += " Forced retreat.";
       }
+    }
+
+    drainStamina(soldiers);
+    if (exhaustedBefore > 0) {
+      note += ` Exhausted×0.6: ${exhaustedBefore}.`;
     }
 
     if (oppositionHp > 0 && living(soldiers).length > 0 && !retreated) {
@@ -189,6 +215,9 @@ export function simulateCombat(
   const ammoExpended = startAmmo - totalAmmo(soldiers);
   const lootFunds = won ? contract.lootFunds : 0;
   const lootMaterials = won ? contract.lootMaterials : 0;
+
+  // Phase 1: survivors recover stamina after the engagement.
+  restoreStamina(soldiers);
 
   let next: GameState = {
     ...state,

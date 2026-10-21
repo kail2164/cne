@@ -1,4 +1,10 @@
 import { START, getCaliber, getRifle, getRifleForCaliber } from "./catalog.js";
+import {
+  createRecruitSoldier,
+  emptyLoadout,
+  maxAmmoForStrength,
+  soldierCombatFactor,
+} from "./soldier.js";
 import type { ActionResult, GameState, Soldier } from "./types.js";
 import { getQuantity, withdrawItems } from "./warehouse.js";
 
@@ -30,7 +36,7 @@ export function companyPower(state: GameState): number {
     const cal = getCaliber(s.loadout.ammoCaliberId);
     if (!weapon || !cal) return sum;
     const base = weapon.damage + cal.stoppingPower;
-    return sum + base * soldierWeaponFactor(weapon.id) * (0.85 + s.skill * 0.15);
+    return sum + base * soldierWeaponFactor(weapon.id) * soldierCombatFactor(s);
   }, 0);
 }
 
@@ -76,17 +82,14 @@ export function recruitSoldiers(
 
   const cost = recruited * START.recruitCostPerSoldier;
   const baseId = next.company.soldiers.length;
-  const newSoldiers: Soldier[] = Array.from({ length: recruited }, (_, i) => ({
-    id: `s-${baseId + i + 1}`,
-    name: `Private ${baseId + i + 1}`,
-    loadout: {
-      weaponId: rifle.id,
-      ammoCaliberId: state.selectedCaliberId!,
-      ammoRounds: 0,
-    },
-    alive: true,
-    skill: 1,
-  }));
+  const newSoldiers: Soldier[] = Array.from({ length: recruited }, (_, i) => {
+    const id = `s-${baseId + i + 1}`;
+    return createRecruitSoldier(
+      id,
+      `Private ${baseId + i + 1}`,
+      emptyLoadout(rifle.id, state.selectedCaliberId!, 0),
+    );
+  });
 
   next = {
     ...next,
@@ -157,17 +160,29 @@ export function issueCompanyAmmo(
         s.alive && s.loadout
           ? {
               ...s,
-              loadout: { ...s.loadout, ammoRounds: roundsPerSoldier },
+              loadout: {
+                ...s.loadout,
+                ammoRounds: roundsPerSoldier,
+                gearIds: s.loadout.gearIds ?? [],
+              },
             }
           : s,
       ),
     },
   };
 
+  const avgStr =
+    troops.reduce((n, s) => n + s.strength, 0) / Math.max(1, troops.length);
+  const carryHint = maxAmmoForStrength(avgStr);
+  const carryNote =
+    roundsPerSoldier > carryHint
+      ? ` (note: avg strength suggests ~${carryHint} rounds carry; hard encumbrance deferred)`
+      : "";
+
   return {
     ok: true,
     state: next,
-    message: `Issued ${roundsPerSoldier} rounds × ${troops.length} soldiers (${need} total).`,
+    message: `Issued ${roundsPerSoldier} rounds × ${troops.length} soldiers (${need} total).${carryNote}`,
     data: { issued: need },
   };
 }

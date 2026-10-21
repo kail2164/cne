@@ -79,6 +79,14 @@ In Cursor chat: `/opsx-propose`, `/opsx-apply`, etc.
 **Live in Phase 1 combat:** `damage`, `fireRateRpm`, `reliabilityPct` (plus logistics `productionCost` / `weight`).  
 **Schema ready, sim deferred:** MoA/range hit chance, wear, recoil, handling, reload cadence — see OpenSpec change `weapon-stats-schema`.
 
+## Soldier stats
+
+`Soldier` sheet: HP, stamina, accuracy, agility, strength, weight (kg), salary, loyalty, experience, up to **5 perk slots** (%-boost model; catalog stubbed).  
+Weight caps agility (lighter↑) and strength (heavier↑). Stamina ≤ 0 → **−40%** combat contribution.  
+Loadout includes `gearIds[]` alongside weapon/ammo.  
+**Live:** accuracy / light str+agi / experience / exhaustion + stamina drain.  
+**Deferred:** perk catalog, food-from-weight, gear encumbrance, HP wounds, salary ticks — see `soldier-stats-schema`.
+
 ## Status
 
 Phase 1 MVP is playable via CLI. Balance numbers are tunable constants in `src/core/catalog.ts`.

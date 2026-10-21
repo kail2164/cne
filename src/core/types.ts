@@ -81,14 +81,67 @@ export interface Loadout {
   weaponId: string;
   ammoCaliberId: CaliberId;
   ammoRounds: number;
+  /** Equipment / gear item ids (kit, armor stubs — catalog later). */
+  gearIds: string[];
 }
 
+/** Percentage boost applied by a specialty perk (catalog mostly stubbed). */
+export interface PerkBoost {
+  /** Which side of the sheet the boost targets. */
+  target: "soldier" | "weapon";
+  /** Stat key name (e.g. accuracy, damage, fireRateRpm). */
+  stat: string;
+  /** Percent boost, e.g. 10 = +10%. */
+  percent: number;
+}
+
+export interface PerkDef {
+  id: string;
+  name: string;
+  boosts: PerkBoost[];
+}
+
+export interface GearDef {
+  id: string;
+  name: string;
+  /** Carried mass in kg (encumbrance later). */
+  weightKg: number;
+}
+
+/**
+ * Soldier attribute sheet.
+ * Weight caps agility/strength — see soldier.ts helpers.
+ * Exhausted (stamina ≤ 0) → −40% effective combat stats.
+ */
 export interface Soldier {
   id: string;
   name: string;
   loadout: Loadout | null;
   alive: boolean;
-  skill: number;
+  /** Current hit points. */
+  hp: number;
+  /** Maximum hit points. */
+  maxHp: number;
+  /** Current stamina points (fight/move endurance). */
+  stamina: number;
+  /** Maximum stamina points. */
+  maxStamina: number;
+  /** Aim quality 0–100. */
+  accuracy: number;
+  /** Movement / reload / turn tempo 0–100 (capped by weight). */
+  agility: number;
+  /** Recoil control & carry capacity 0–100 (capped by weight). */
+  strength: number;
+  /** Body mass in kilograms. */
+  weightKg: number;
+  /** Pay in funds per pay period. */
+  salary: number;
+  /** Morale / loyalty 0–100. */
+  loyalty: number;
+  /** Combat/training experience points. */
+  experience: number;
+  /** Specialty perk ids — at most 5. */
+  perkIds: string[];
 }
 
 export interface FactoryLine {
