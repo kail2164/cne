@@ -45,13 +45,22 @@ import {
   upgradeCost,
   upgradeFactory,
   describeAvailableResearch,
+  describeResearchFacilities,
   describeResearchTree,
+  buyResearchFacility,
+  facilityUpgradeCost,
+  hireScientist,
   isFactoryTierUnlocked,
   listAvailableResearch,
+  nextFacilityTierPrice,
+  projectedLabRp,
+  RESEARCH_FACILITY_TIERS,
+  upgradeResearchFacility,
   type CaliberId,
   type FactoryProductKind,
   type FactoryTierId,
   type GameState,
+  type ResearchFacilityTierId,
 } from "./core/index.js";
 
 function printHeader(title: string): void {
@@ -70,8 +79,9 @@ function printStatus(state: GameState): void {
   const loadNote = state.selectedCaliberId
     ? ` | load ${LOAD_SUBTYPE_LABEL[state.selectedLoadSubtype]}${load ? ` $${load.productionCost}/rd` : ""}`
     : "";
+  const labNote = `${state.scientists.length} sci → ${projectedLabRp(state)} RP/mo`;
   console.log(
-    `${formatDate(state)} | funds $${state.funds.toFixed(0)} | RP ${state.researchPoints} | plant: ${facNote} | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}${loadNote}`,
+    `${formatDate(state)} | funds $${state.funds.toFixed(0)} | RP ${state.researchPoints} (${labNote}) | plant: ${facNote} | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}${loadNote}`,
   );
   const meal = getFood(state.mealPlanId);
   console.log(
@@ -264,7 +274,11 @@ Actions:
   15) Upgrade factory
   16) Research — list available / spend RP
   17) Research tree (all nodes)
-  18) Quit
+  18) List labs / scientists
+  19) Hire scientist
+  20) Build research facility
+  21) Upgrade research facility
+  22) Quit
 `);
     const choice = await askNumber(rl, "Choice [2]: ", 2);
     switch (choice) {
@@ -477,7 +491,55 @@ Actions:
         describeResearchTree(state).forEach((l) => console.log(`  ${l}`));
         break;
       }
-      case 18:
+      case 18: {
+        describeResearchFacilities(state).forEach((l) => console.log(`  ${l}`));
+        break;
+      }
+      case 19: {
+        const r = hireScientist(state);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 20: {
+        RESEARCH_FACILITY_TIERS.forEach((t, i) =>
+          console.log(
+            `  ${i + 1}. ${t.id} — ${t.name} $${nextFacilityTierPrice(state, t.id)} (N=${t.baseCapacity}, rp×${t.tierRpMult})`,
+          ),
+        );
+        const n = await askNumber(rl, "Tier # [1=shed]: ", 1);
+        const tier =
+          RESEARCH_FACILITY_TIERS[
+            Math.min(Math.max(n, 1), RESEARCH_FACILITY_TIERS.length) - 1
+          ]!;
+        const r = buyResearchFacility(state, tier.id as ResearchFacilityTierId);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 21: {
+        describeResearchFacilities(state).forEach((l) => console.log(`  ${l}`));
+        const n = await askNumber(rl, "Facility # to upgrade [1]: ", 1);
+        const fac =
+          state.researchFacilities[
+            Math.min(Math.max(n, 1), state.researchFacilities.length) - 1
+          ];
+        if (!fac) {
+          console.log("No facility.");
+          break;
+        }
+        const cost = facilityUpgradeCost(fac);
+        console.log(
+          cost == null
+            ? "  Already max stage."
+            : `  Upgrade cost $${cost} → stage ${fac.stage + 1}`,
+        );
+        const r = upgradeResearchFacility(state, fac.id);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 22:
         playing = false;
         break;
       default:

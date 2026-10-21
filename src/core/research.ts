@@ -8,10 +8,13 @@ import type {
   ResearchNode,
 } from "./types.js";
 
-/** RP awarded every end-turn (1 month). */
-export const RP_PER_MONTH = 3;
-/** RP awarded on victorious contract resolution. */
-export const RP_PER_CONTRACT_WIN = 10;
+/**
+ * Flat monthly RP stipend — removed; labs/scientists are primary income.
+ * Kept as 0 for callers that still reference the constant.
+ */
+export const RP_PER_MONTH = 0;
+/** RP awarded on victorious contract resolution (reduced; labs are primary). */
+export const RP_PER_CONTRACT_WIN = 5;
 
 export const STARTER_UNLOCKS = ["gear-basic-pouch"] as const;
 
@@ -561,7 +564,9 @@ export function spendResearch(
   };
 }
 
+/** @deprecated Flat stipend removed — use awardLabRp from labs.ts. */
 export function awardMonthlyRp(state: GameState): GameState {
+  if (RP_PER_MONTH <= 0) return state;
   return { ...state, researchPoints: state.researchPoints + RP_PER_MONTH };
 }
 

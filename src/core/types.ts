@@ -413,6 +413,42 @@ export interface ResearchNode {
   effects: ResearchEffect[];
 }
 
+export type ResearchFacilityTierId =
+  | "shed"
+  | "lab"
+  | "institute"
+  | "campus"
+  | "academy";
+
+export interface ResearchFacilityTierDef {
+  id: ResearchFacilityTierId;
+  name: string;
+  /** First-copy build cost in funds. */
+  baseBuildCost: number;
+  /** Scientist seats at stage 1. */
+  baseCapacity: number;
+  /** Multiplier on scientist RP output. */
+  tierRpMult: number;
+}
+
+export interface OwnedResearchFacility {
+  id: string;
+  tierId: ResearchFacilityTierId;
+  /** Upgrade stage 1–5. */
+  stage: number;
+  /** Scientist ids assigned to this facility. */
+  scientistIds: string[];
+}
+
+export interface Scientist {
+  id: string;
+  name: string;
+  /** Monthly salary in funds. */
+  salary: number;
+  /** Facility id if housed; null if unassigned (should not happen in Phase 1). */
+  facilityId: string | null;
+}
+
 export interface GameState {
   /** Calendar year (advances on end turn). */
   year: number;
@@ -445,6 +481,15 @@ export interface GameState {
   researchPoints: number;
   /** Unlocked research node ids. */
   researchUnlocked: string[];
+  /** Hired research staff. */
+  scientists: Scientist[];
+  /** Owned research labs / sheds. */
+  researchFacilities: OwnedResearchFacility[];
+  /**
+   * Next purchase price per research facility tier (2× after each buy).
+   * Missing key → use tier baseBuildCost.
+   */
+  researchFacilityTierNextPrice: Partial<Record<ResearchFacilityTierId, number>>;
   /** Current contract mission, or null. */
   activeMission: ActiveMission | null;
   /** Highest unlocked regional tier. */

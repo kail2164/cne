@@ -221,3 +221,28 @@ export {
   weaponResearchId,
   loadResearchId,
 } from "./research.js";
+
+export {
+  RESEARCH_FACILITY_TIERS,
+  RP_PER_SCIENTIST,
+  SCIENTIST_HIRE_COST,
+  SCIENTIST_SALARY,
+  MAX_FACILITY_STAGE,
+  getResearchFacilityTier,
+  facilityStageEff,
+  facilityCapacity,
+  facilityRpMult,
+  nextFacilityTierPrice,
+  facilityUpgradeCost,
+  totalScientistCapacity,
+  freeScientistSeats,
+  projectedLabRp,
+  scientistSalaryBill,
+  describeResearchFacilities,
+  hireScientist,
+  buyResearchFacility,
+  upgradeResearchFacility,
+  awardLabRp,
+  startingResearchShed,
+  startingScientist,
+} from "./labs.js";

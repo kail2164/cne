@@ -1,6 +1,6 @@
 import { progressCombatMonth } from "./combat.js";
 import { resolveFactoryMonth, unlockAllFactorySlots } from "./factory.js";
-import { RP_PER_MONTH, awardMonthlyRp } from "./research.js";
+import { awardLabRp } from "./labs.js";
 import { resolveMonthlyUpkeep } from "./upkeep.js";
 import type { ActionResult, BarrackDuty, EndTurnResult, GameState } from "./types.js";
 
@@ -47,7 +47,8 @@ export function endTurn(state: GameState): ActionResult<EndTurnResult> {
   const upkeep = resolveMonthlyUpkeep(next);
   next = upkeep.state;
 
-  next = awardMonthlyRp(next);
+  const labRp = awardLabRp(next);
+  next = labRp.state;
 
   const cal = advanceCalendar(next.year, next.month);
   next = {
@@ -62,7 +63,10 @@ export function endTurn(state: GameState): ActionResult<EndTurnResult> {
   const label = `${cal.year}-${String(cal.month).padStart(2, "0")}`;
   const combatPart = combatNote ? ` ${combatNote}` : "";
   const upkeepPart = upkeep.message ? ` ${upkeep.message}` : "";
-  const rpPart = ` +${RP_PER_MONTH} RP (now ${next.researchPoints}).`;
+  const rpPart =
+    labRp.earned > 0
+      ? ` Labs +${labRp.earned} RP (now ${next.researchPoints}).`
+      : ` Labs +0 RP (now ${next.researchPoints}).`;
   return {
     ok: true,
     state: next,

@@ -1,4 +1,5 @@
 import { getFood } from "./food.js";
+import { scientistSalaryBill } from "./labs.js";
 import { moraleDesertionThresholdBonus } from "./research.js";
 import type { ActionResult, GameState, UpkeepResult } from "./types.js";
 
@@ -43,7 +44,9 @@ export function resolveMonthlyUpkeep(
   let salaryShort = false;
   let foodShort = false;
 
-  const salaryBill = living.reduce((n, s) => n + s.salary, 0);
+  const troopSalary = living.reduce((n, s) => n + s.salary, 0);
+  const sciSalary = scientistSalaryBill(state);
+  const salaryBill = troopSalary + sciSalary;
   if (funds >= salaryBill) {
     funds -= salaryBill;
     salaryPaid = salaryBill;
@@ -52,6 +55,9 @@ export function resolveMonthlyUpkeep(
     salaryPaid = funds;
     funds = 0;
     notes.push("Salary shortfall — loyalty −8.");
+  }
+  if (sciSalary > 0 && !salaryShort) {
+    notes.push(`Scientists $${sciSalary.toFixed(0)}.`);
   }
 
   const food = getFood(state.mealPlanId) ?? getFood("army-stew")!;
@@ -129,8 +135,10 @@ export function resolveMonthlyUpkeep(
     squads,
   };
 
+  const sciNote =
+    sciSalary > 0 ? ` incl. sci $${sciSalary.toFixed(0)}` : "";
   const summary =
-    `Upkeep: salary $${salaryPaid.toFixed(0)}` +
+    `Upkeep: salary $${salaryPaid.toFixed(0)}${sciNote}` +
     `${salaryShort ? " (short)" : ""}, meals $${foodPaid.toFixed(0)}` +
     `${foodShort ? " (short)" : ""} (${food.name})` +
     `${deserted ? `, deserted ${deserted}` : ""}.`;

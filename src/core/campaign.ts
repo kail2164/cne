@@ -9,6 +9,7 @@ import {
   getRifleForCaliber,
 } from "./catalog.js";
 import { startingBlacksmith } from "./factory.js";
+import { startingResearchShed, startingScientist } from "./labs.js";
 import {
   STARTER_UNLOCKS,
   grantStarterCaliberPath,
@@ -56,12 +57,20 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
     garage: [],
     researchPoints: 0,
     researchUnlocked: [...STARTER_UNLOCKS],
+    scientists: [],
+    researchFacilities: [],
+    researchFacilityTierNextPrice: {},
     activeMission: null,
     currentTier: "local",
     jobsCompletedTowardNext: 0,
     jobsCompletedTotal: 0,
     contractBoard: [],
   };
+  const shed = startingResearchShed();
+  const sci = startingScientist(shed.id);
+  shed.scientistIds = [sci.id];
+  base.researchFacilities = [shed];
+  base.scientists = [sci];
   return fillContractBoard(base);
 }
 
