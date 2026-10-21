@@ -2,15 +2,19 @@ export type * from "./types.js";
 
 export {
   CALIBERS,
+  CALIBER_FAMILIES,
   RIFLES,
   START,
   LOCAL_CONTRACT,
   LOCKED_TIERS,
   WEAPON_STATS_COMBAT_LIVE,
   getCaliber,
+  getCaliberFamily,
   getRifle,
   getRifleForCaliber,
   listContracts,
+  effectiveDamage,
+  effectivePenetration,
 } from "./catalog.js";
 
 export { createCampaign, listStartingCalibers, selectCaliber } from "./campaign.js";
@@ -33,6 +37,8 @@ export {
   companyTotalAmmo,
   companyPower,
   soldierWeaponFactor,
+  livingPop,
+  countByDuty,
   recruitSoldiers,
   issueCompanyAmmo,
 } from "./barracks.js";
@@ -41,6 +47,7 @@ export {
   getContract,
   assessReadiness,
   checkContractAcceptance,
+  estimateSuccessChance,
 } from "./logistics.js";
 
 export { simulateCombat } from "./combat.js";
@@ -67,3 +74,14 @@ export {
   createRecruitSoldier,
   soldierCombatFactor,
 } from "./soldier.js";
+
+export {
+  doctrineConsumption,
+  createSquad,
+  combineSquads,
+  assignSoldiersToSquad,
+  ensureDefaultSquadFilled,
+  terrainExperienceBonus,
+} from "./composition.js";
+
+export { FOODS, getFood, isFoodUnlocked } from "./food.js";

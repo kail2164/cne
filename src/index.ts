@@ -75,7 +75,7 @@ function printCombat(state: GameState, contractId: string): GameState {
       );
     }
     console.log(
-      `\nOutcome: ${result.data.won ? "VICTORY" : result.data.retreated ? "RETREAT" : "DEFEAT"} | casualties ${result.data.casualties} | ammo expended ${result.data.ammoExpended} | loot +$${result.data.lootFunds} / +${result.data.lootMaterials} mat`,
+      `\nOutcome: ${result.data.won ? "VICTORY" : result.data.retreated ? "RETREAT" : "DEFEAT"} | success ~${result.data.successChance}% | KIA ${result.data.casualties} | wounded ${result.data.wounded} | ammo ${result.data.ammoExpended} | loot +$${result.data.lootFunds} / +${result.data.lootMaterials} mat`,
     );
   }
   return result.state;
@@ -131,7 +131,7 @@ async function interactive(): Promise<void> {
   console.log("\nStarting caliber families:");
   calibers.forEach((c, i) => {
     console.log(
-      `  ${i + 1}. ${c.name} → ${c.rifle} (cost ${c.productionCost}/rd, power ${c.stoppingPower}, supply ${c.supplyEfficiency})`,
+      `  ${i + 1}. ${c.name} → ${c.rifle} (cost ${c.productionCost}/rd, dmg ${c.baseDamage}, supply ${c.supplyEfficiency})`,
     );
   });
   const calChoice = await askNumber(rl, "Choose caliber [5=Mauser]: ", 5);

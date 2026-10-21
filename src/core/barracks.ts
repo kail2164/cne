@@ -1,4 +1,5 @@
 import { START, getCaliber, getRifle, getRifleForCaliber } from "./catalog.js";
+import { ensureDefaultSquadFilled } from "./composition.js";
 import {
   createRecruitSoldier,
   emptyLoadout,
@@ -10,6 +11,14 @@ import { getQuantity, withdrawItems } from "./warehouse.js";
 
 function livingSoldiers(state: GameState): Soldier[] {
   return state.company.soldiers.filter((s) => s.alive);
+}
+
+export function livingPop(state: GameState): number {
+  return livingSoldiers(state).length;
+}
+
+export function countByDuty(state: GameState, duty: Soldier["duty"]): number {
+  return livingSoldiers(state).filter((s) => s.duty === duty).length;
 }
 
 export function companyTroopCount(state: GameState): number {
@@ -35,7 +44,7 @@ export function companyPower(state: GameState): number {
     const weapon = getRifle(s.loadout.weaponId);
     const cal = getCaliber(s.loadout.ammoCaliberId);
     if (!weapon || !cal) return sum;
-    const base = weapon.damage + cal.stoppingPower;
+    const base = cal.baseDamage + weapon.damage;
     return sum + base * soldierWeaponFactor(weapon.id) * soldierCombatFactor(s);
   }, 0);
 }
@@ -59,12 +68,14 @@ export function recruitSoldiers(
   const rifle = getRifleForCaliber(state.selectedCaliberId)!;
   const availableRifles = getQuantity(state.warehouse, "weapon", rifle.id);
   const affordable = Math.floor(state.funds / START.recruitCostPerSoldier);
-  const recruited = Math.min(count, availableRifles, affordable);
+  const openSlots = Math.max(0, state.barracksPopSlots - livingPop(state));
+  const recruited = Math.min(count, availableRifles, affordable, openSlots);
 
   if (recruited <= 0) {
     const reasons: string[] = [];
     if (availableRifles <= 0) reasons.push("no rifles in warehouse");
     if (affordable <= 0) reasons.push("insufficient funds");
+    if (openSlots <= 0) reasons.push("barracks pop slots full");
     return {
       ok: false,
       state,
@@ -100,9 +111,16 @@ export function recruitSoldiers(
     },
   };
 
+  next = ensureDefaultSquadFilled(
+    next,
+    START.defaultSquadSize,
+    "balance",
+    rifle.id,
+  );
+
   const capped =
     recruited < count
-      ? ` (capped from ${count}: rifles=${availableRifles}, funds allow ${affordable})`
+      ? ` (capped from ${count}: rifles=${availableRifles}, funds allow ${affordable}, slots ${openSlots})`
       : "";
 
   return {

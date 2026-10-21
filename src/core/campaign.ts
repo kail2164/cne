@@ -26,6 +26,8 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
     factoryAllocation: { ammo: 0.6, rifles: 0.4 },
     factoryCapacityPerTick: START.factoryCapacityPerTick,
     company: { name: companyName, soldiers: [] },
+    barracksPopSlots: START.barracksPopSlots,
+    squads: [],
     garage: [],
     researchUnlocked: [],
   };
@@ -39,7 +41,11 @@ export function listStartingCalibers() {
     productionCost: c.productionCost,
     weightPerRound: c.weightPerRound,
     volumePerRound: c.volumePerRound,
-    stoppingPower: c.stoppingPower,
+    baseDamage: c.baseDamage,
+    basePenetration: c.basePenetration,
+    gunPowderAmount: c.gunPowderAmount,
+    familyId: c.familyId,
+    variant: c.variant,
     supplyEfficiency: c.supplyEfficiency,
   }));
 }

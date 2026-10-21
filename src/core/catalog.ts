@@ -1,58 +1,91 @@
-import type { AmmoCaliber, Contract, Weapon } from "./types.js";
+import type {
+  AmmoCaliber,
+  CaliberFamily,
+  Contract,
+  Weapon,
+} from "./types.js";
+
+export const CALIBER_FAMILIES: CaliberFamily[] = [
+  { id: "762x54r", name: "7.62×54mmR family", variants: ["ball", "steel_tip", "tracer"] },
+  { id: "3006", name: ".30-06 family", variants: ["ball", "steel_tip", "tracer", "hollow"] },
+  { id: "303br", name: ".303 British family", variants: ["ball", "tracer"] },
+  { id: "8x50r", name: "8×50mmR Lebel family", variants: ["ball", "tracer"] },
+  { id: "792x57", name: "7.92×57mm Mauser family", variants: ["ball", "steel_tip", "tracer"] },
+];
 
 export const CALIBERS: AmmoCaliber[] = [
   {
     id: "762x54r",
-    name: "7.62×54mmR",
+    name: "7.62×54mmR Ball",
+    familyId: "762x54r",
+    variant: "ball",
     productionCost: 1.2,
     materialCost: 0.8,
     weightPerRound: 0.025,
     volumePerRound: 0.018,
-    stoppingPower: 6,
+    baseDamage: 6,
+    basePenetration: 55,
+    gunPowderAmount: 48,
     supplyEfficiency: 1.0,
     rifleId: "mosin-m91",
   },
   {
     id: "3006",
-    name: ".30-06 Springfield",
+    name: ".30-06 Ball",
+    familyId: "3006",
+    variant: "ball",
     productionCost: 1.4,
     materialCost: 0.9,
     weightPerRound: 0.028,
     volumePerRound: 0.02,
-    stoppingPower: 7.5,
+    baseDamage: 7.5,
+    basePenetration: 62,
+    gunPowderAmount: 50,
     supplyEfficiency: 1.0,
     rifleId: "springfield-m1903",
   },
   {
     id: "303br",
-    name: ".303 British",
+    name: ".303 British Ball",
+    familyId: "303br",
+    variant: "ball",
     productionCost: 1.25,
     materialCost: 0.85,
     weightPerRound: 0.024,
     volumePerRound: 0.017,
-    stoppingPower: 6.2,
+    baseDamage: 6.2,
+    basePenetration: 52,
+    gunPowderAmount: 37,
     supplyEfficiency: 1.25,
     rifleId: "lee-enfield-smle",
   },
   {
     id: "8x50r",
-    name: "8×50mmR Lebel",
+    name: "8×50mmR Lebel Ball",
+    familyId: "8x50r",
+    variant: "ball",
     productionCost: 1.0,
     materialCost: 0.7,
     weightPerRound: 0.032,
     volumePerRound: 0.026,
-    stoppingPower: 5.5,
+    baseDamage: 5.5,
+    basePenetration: 48,
+    gunPowderAmount: 46,
     supplyEfficiency: 0.75,
     rifleId: "lebel-m1886",
   },
   {
     id: "792x57",
-    name: "7.92×57mm Mauser",
+    name: "7.92×57mm Mauser Ball",
+    familyId: "792x57",
+    variant: "ball",
     productionCost: 1.35,
     materialCost: 0.9,
     weightPerRound: 0.026,
     volumePerRound: 0.019,
-    stoppingPower: 7.2,
+    baseDamage: 7.2,
+    basePenetration: 65,
+    gunPowderAmount: 49,
     supplyEfficiency: 0.9,
     rifleId: "gewehr-98",
   },
@@ -189,6 +222,8 @@ export const START = {
   warehouseMaxVolume: 1800,
   factoryCapacityPerTick: 100,
   recruitCostPerSoldier: 25,
+  barracksPopSlots: 40,
+  defaultSquadSize: 20,
 } as const;
 
 export const LOCAL_CONTRACT: Contract = {
@@ -196,14 +231,19 @@ export const LOCAL_CONTRACT: Contract = {
   name: "Border Patrol Skirmish",
   tier: "local",
   blurb: "Drive bandits from the frontier rail spur. Local Region only.",
-  minTroops: 12,
+  manpowerRequired: 12,
   minPower: 140,
   recommendedAmmoPerSoldier: 35,
   oppositionHp: 380,
   oppositionDamagePerTick: 14,
   maxTicks: 12,
-  lootFunds: 400,
+  cashReward: 400,
   lootMaterials: 80,
+  itemRewards: [],
+  combatType: "offense",
+  terrain: "plains",
+  durationMinutes: 90,
+  baseSuccessChance: 72,
 };
 
 export const LOCKED_TIERS: Contract[] = [
@@ -212,19 +252,28 @@ export const LOCKED_TIERS: Contract[] = [
     name: "Provincial Relief Column",
     tier: "province",
     blurb: "Locked until later phases.",
-    minTroops: 40,
+    manpowerRequired: 40,
     minPower: 500,
     recommendedAmmoPerSoldier: 50,
     oppositionHp: 800,
     oppositionDamagePerTick: 20,
     maxTicks: 20,
-    lootFunds: 0,
+    cashReward: 0,
     lootMaterials: 0,
+    itemRewards: [],
+    combatType: "escort",
+    terrain: "forest",
+    durationMinutes: 360,
+    baseSuccessChance: 55,
   },
 ];
 
 export function getCaliber(id: string): AmmoCaliber | undefined {
   return CALIBERS.find((c) => c.id === id);
+}
+
+export function getCaliberFamily(id: string): CaliberFamily | undefined {
+  return CALIBER_FAMILIES.find((f) => f.id === id);
 }
 
 export function getRifle(id: string): Weapon | undefined {
@@ -238,6 +287,21 @@ export function getRifleForCaliber(caliberId: string): Weapon | undefined {
 
 export function listContracts(): Contract[] {
   return [LOCAL_CONTRACT, ...LOCKED_TIERS];
+}
+
+/** Effective ballistic pair: caliber base + flat weapon bonuses. */
+export function effectiveDamage(weaponId: string, caliberId: string): number {
+  const w = getRifle(weaponId);
+  const c = getCaliber(caliberId);
+  if (!w || !c) return 0;
+  return c.baseDamage + w.damage;
+}
+
+export function effectivePenetration(weaponId: string, caliberId: string): number {
+  const w = getRifle(weaponId);
+  const c = getCaliber(caliberId);
+  if (!w || !c) return 0;
+  return c.basePenetration + w.penetration;
 }
 
 /** Combat live stats today; MoA/range/wear/recoil/handling reserved for later. */

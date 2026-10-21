@@ -1,5 +1,9 @@
-import { getCaliber, getRifle } from "./catalog.js";
-import { checkContractAcceptance, getContract } from "./logistics.js";
+import { effectiveDamage, getCaliber, getRifle } from "./catalog.js";
+import {
+  checkContractAcceptance,
+  estimateSuccessChance,
+  getContract,
+} from "./logistics.js";
 import { STAMINA_DRAIN_PER_TICK, soldierCombatFactor } from "./soldier.js";
 import type {
   ActionResult,
@@ -54,22 +58,52 @@ function applyCasualties(soldiers: Soldier[], count: number): number {
 }
 
 /**
- * Phase 1 firepower: weapon damage/rate/reliability × soldier accuracy/str/agi/exp,
- * with −40% when stamina depleted. Deferred: MoA/range, wear, full perk catalog, HP wounds.
+ * Firepower: (caliber.baseDamage + weapon.damage) × rate/reliability × soldier factors.
+ * Penetration (base+weapon) reserved for cover sim later.
  */
 function firepower(soldiers: Soldier[]): number {
   return living(soldiers).reduce((sum, s) => {
     if (!s.loadout) return sum;
     const w = getRifle(s.loadout.weaponId);
-    const c = getCaliber(s.loadout.ammoCaliberId);
-    if (!w || !c) return sum;
+    if (!w) return sum;
+    const dmg = effectiveDamage(s.loadout.weaponId, s.loadout.ammoCaliberId);
     const fireFactor = Math.min(1.3, Math.max(0.7, w.fireRateRpm / 15));
     const reliFactor = Math.min(1, Math.max(0.5, w.reliabilityPct / 100));
-    return (
-      sum +
-      (w.damage + c.stoppingPower) * fireFactor * reliFactor * soldierCombatFactor(s)
-    );
+    return sum + dmg * fireFactor * reliFactor * soldierCombatFactor(s);
   }, 0);
+}
+
+/** At high success, convert some KIA into wounded-with-rest; at 100% revive all tick KIA. */
+function applySuccessWoundModel(
+  soldiers: Soldier[],
+  successChance: number,
+): { wounded: number; kiaKept: number } {
+  const dead = soldiers.filter((s) => !s.alive);
+  if (dead.length === 0) return { wounded: 0, kiaKept: 0 };
+
+  if (successChance >= 100) {
+    for (const s of dead) {
+      s.alive = true;
+      s.duty = "ready";
+      s.woundedRestTicks = 0;
+      s.hp = Math.max(1, Math.floor(s.maxHp * 0.8));
+    }
+    return { wounded: 0, kiaKept: 0 };
+  }
+
+  const woundCount = Math.round(dead.length * (successChance / 100));
+  let wounded = 0;
+  for (let i = 0; i < dead.length; i++) {
+    const s = dead[i]!;
+    if (i < woundCount) {
+      s.alive = true;
+      s.duty = "wounded";
+      s.woundedRestTicks = Math.max(2, Math.ceil((100 - successChance) / 10));
+      s.hp = Math.max(1, Math.floor(s.maxHp * 0.4));
+      wounded += 1;
+    }
+  }
+  return { wounded, kiaKept: dead.length - wounded };
 }
 
 function drainStamina(soldiers: Soldier[]): void {
@@ -80,7 +114,10 @@ function drainStamina(soldiers: Soldier[]): void {
 
 function restoreStamina(soldiers: Soldier[]): void {
   for (const s of soldiers) {
-    if (s.alive) s.stamina = s.maxStamina;
+    if (s.alive && s.duty !== "wounded") s.stamina = s.maxStamina;
+    else if (s.alive && s.duty === "wounded") {
+      s.stamina = Math.min(s.stamina, Math.floor(s.maxStamina * 0.3));
+    }
   }
 }
 
@@ -110,6 +147,8 @@ export function simulateCombat(
         log: [],
         ammoExpended: 0,
         casualties: 0,
+        wounded: 0,
+        successChance: 0,
         lootFunds: 0,
         lootMaterials: 0,
         summary: gate.message,
@@ -118,6 +157,7 @@ export function simulateCombat(
   }
 
   const contract = getContract(contractId)!;
+  const successChance = estimateSuccessChance(state, contract);
   const soldiers = cloneSoldiers(state.company.soldiers);
   const startLiving = living(soldiers).length;
   const startAmmo = totalAmmo(soldiers);
@@ -211,12 +251,12 @@ export function simulateCombat(
     });
   }
 
-  const casualties = startLiving - living(soldiers).length;
+  const tickCasualties = startLiving - living(soldiers).length;
+  const woundPass = applySuccessWoundModel(soldiers, successChance);
   const ammoExpended = startAmmo - totalAmmo(soldiers);
-  const lootFunds = won ? contract.lootFunds : 0;
+  const lootFunds = won ? contract.cashReward : 0;
   const lootMaterials = won ? contract.lootMaterials : 0;
 
-  // Phase 1: survivors recover stamina after the engagement.
   restoreStamina(soldiers);
 
   let next: GameState = {
@@ -231,10 +271,10 @@ export function simulateCombat(
   }
 
   const summary = won
-    ? `Victory at ${contract.name}. Casualties ${casualties}, ammo spent ${ammoExpended}, loot +${lootFunds} funds / +${lootMaterials} materials.`
+    ? `Victory at ${contract.name} (success ~${successChance}%). Tick cas ${tickCasualties}, KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}, loot +${lootFunds} / +${lootMaterials} mat.`
     : retreated
-      ? `Retreat from ${contract.name}. Casualties ${casualties}, ammo spent ${ammoExpended}.`
-      : `Defeat at ${contract.name}. Casualties ${casualties}, ammo spent ${ammoExpended}.`;
+      ? `Retreat from ${contract.name} (success ~${successChance}%). KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}.`
+      : `Defeat at ${contract.name} (success ~${successChance}%). KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}.`;
 
   return {
     ok: true,
@@ -245,7 +285,9 @@ export function simulateCombat(
       retreated,
       log,
       ammoExpended,
-      casualties,
+      casualties: woundPass.kiaKept,
+      wounded: woundPass.wounded,
+      successChance,
       lootFunds,
       lootMaterials,
       summary,

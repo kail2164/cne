@@ -5,6 +5,10 @@ export type CaliberId =
   | "8x50r"
   | "792x57";
 
+export type CaliberFamilyId = CaliberId;
+
+export type RoundVariant = "ball" | "steel_tip" | "tracer" | "hollow";
+
 export type ProductLine = "ammo" | "rifles";
 
 export type ContractTier =
@@ -14,16 +18,83 @@ export type ContractTier =
   | "national"
   | "global";
 
+export type CombatType = "offense" | "defense" | "convoy" | "escort" | "scout";
+
+export type CombatTerrain = "urban" | "desert" | "jungle" | "plains" | "forest";
+
+export type Doctrine = "offensive" | "balance" | "defensive" | "support";
+
+export type BarrackDuty = "unassigned" | "assigned" | "wounded" | "ready";
+
+export interface CaliberFamily {
+  id: CaliberFamilyId;
+  name: string;
+  /** Variants this family can chamber/produce. */
+  variants: RoundVariant[];
+}
+
 export interface AmmoCaliber {
   id: CaliberId;
   name: string;
+  /** Caliber family this round belongs to. */
+  familyId: CaliberFamilyId;
+  /** Round construction variant. */
+  variant: RoundVariant;
+  /** Manufacture cost in funds. */
   productionCost: number;
   materialCost: number;
   weightPerRound: number;
   volumePerRound: number;
-  stoppingPower: number;
+  /** Basic damage; weapon.damage adds a flat bonus. */
+  baseDamage: number;
+  /** Basic penetration; weapon.penetration adds a flat bonus. */
+  basePenetration: number;
+  /** Propellant charge in grains. */
+  gunPowderAmount: number;
   supplyEfficiency: number;
   rifleId: string;
+}
+
+export interface FoodDef {
+  id: string;
+  name: string;
+  /** Flat nourishment value. */
+  nourishment: number;
+  /** Happiness delta; bland/MRE-style food may be negative. */
+  happiness: number;
+  /** Manufacture cost in funds. */
+  productionCost: number;
+  /** Required recipe id; null = starter unlocked. */
+  recipeId: string | null;
+}
+
+export interface SquadConsumption {
+  /** Food units per day. */
+  foodPerDay: number;
+  /** Ammo rounds per day (training/patrol burn). */
+  ammoPerDay: number;
+  /** Abstract supply points (med/grenade/smoke kit, etc.). */
+  suppliesPerDay: number;
+}
+
+export interface Squad {
+  id: string;
+  name: string;
+  /** Configurable fire-team / squad size target. */
+  size: number;
+  soldierIds: string[];
+  doctrine: Doctrine;
+  appointedWeaponId: string | null;
+  /** Parent group when combined into a larger formation. */
+  parentSquadId: string | null;
+  consumption: SquadConsumption;
+  /** Field experience by terrain (success-chance bonus later). */
+  fieldExperience: Partial<Record<CombatTerrain, number>>;
+}
+
+export interface ContractItemReward {
+  itemId: string;
+  quantity: number;
 }
 
 /**
@@ -142,6 +213,12 @@ export interface Soldier {
   experience: number;
   /** Specialty perk ids — at most 5. */
   perkIds: string[];
+  /** Barracks duty / readiness state. */
+  duty: BarrackDuty;
+  /** Squad assignment; null if unassigned reserve. */
+  squadId: string | null;
+  /** Remaining rest ticks while wounded (0 if healthy). */
+  woundedRestTicks: number;
 }
 
 export interface FactoryLine {
@@ -185,14 +262,23 @@ export interface Contract {
   name: string;
   tier: ContractTier;
   blurb: string;
-  minTroops: number;
+  /** Manpower required to accept. */
+  manpowerRequired: number;
   minPower: number;
   recommendedAmmoPerSoldier: number;
   oppositionHp: number;
   oppositionDamagePerTick: number;
   maxTicks: number;
-  lootFunds: number;
+  /** Cash reward in funds. */
+  cashReward: number;
   lootMaterials: number;
+  itemRewards: ContractItemReward[];
+  combatType: CombatType;
+  terrain: CombatTerrain;
+  /** Expected time to complete in minutes. */
+  durationMinutes: number;
+  /** Base success chance 0–100 before squad/terrain modifiers. */
+  baseSuccessChance: number;
 }
 
 export interface Company {
@@ -208,6 +294,9 @@ export interface GameState {
   factoryAllocation: FactoryAllocation;
   factoryCapacityPerTick: number;
   company: Company;
+  /** Army size cap from barracks / buildings. */
+  barracksPopSlots: number;
+  squads: Squad[];
   garage: Vehicle[];
   researchUnlocked: string[];
 }
@@ -236,6 +325,8 @@ export interface CombatResult {
   log: CombatLogEntry[];
   ammoExpended: number;
   casualties: number;
+  wounded: number;
+  successChance: number;
   lootFunds: number;
   lootMaterials: number;
   summary: string;

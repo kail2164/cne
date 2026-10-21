@@ -87,6 +87,17 @@ Loadout includes `gearIds[]` alongside weapon/ammo.
 **Live:** accuracy / light str+agi / experience / exhaustion + stamina drain.  
 **Deferred:** perk catalog, food-from-weight, gear encumbrance, HP wounds, salary ticks — see `soldier-stats-schema`.
 
+## Systems stats (OpenSpec `systems-stats-schema`)
+
+- **Caliber:** family/variant, `baseDamage`/`basePenetration` (+ flat weapon bonuses), gun powder grains, manufacture cost
+- **Food:** nourishment, happiness (can be negative), cost, recipe unlock (`FOODS` catalog)
+- **Composition:** squads, doctrine, consumption, combine/appoint helpers
+- **Contracts:** manpower, cash/item rewards, combat type/terrain, duration, success→KIA/wounded
+- **Barracks:** pop slots, duty states, default squad fill on recruit
+
+**Wired now:** caliber damage formula, manpower gate, pop-cap recruit, default squad, success/wound pass.  
+**Deferred:** daily consumption/happiness economy, multi-squad optimizer, building pop upgrades, variant ballistics.
+
 ## Status
 
 Phase 1 MVP is playable via CLI. Balance numbers are tunable constants in `src/core/catalog.ts`.

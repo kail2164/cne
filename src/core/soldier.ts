@@ -127,6 +127,9 @@ export function createRecruitSoldier(
     loyalty: overrides.loyalty ?? 70,
     experience: overrides.experience ?? 10,
     perkIds: (overrides.perkIds ?? []).slice(0, MAX_PERK_SLOTS),
+    duty: overrides.duty ?? "unassigned",
+    squadId: overrides.squadId ?? null,
+    woundedRestTicks: overrides.woundedRestTicks ?? 0,
   };
 }
 
