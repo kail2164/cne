@@ -120,6 +120,10 @@ export {
   escortZoneFor,
   describeMatchup,
   casualtiesFromDamage,
+  moaToWeaponAccuracy,
+  combinedAccuracy,
+  reliabilityAfterWear,
+  weaponTempoFactor,
 } from "./power.js";
 export type {
   ForceProfile,
@@ -147,6 +151,7 @@ export {
   sumPerkPercent,
   assignPerk,
   emptyLoadout,
+  weaponConditionOf,
   createRecruitSoldier,
   soldierCombatFactor,
 } from "./soldier.js";

@@ -186,6 +186,12 @@ export interface Loadout {
   /** Full ammo catalog id including load subtype. */
   ammoCaliberId: AmmoId;
   ammoRounds: number;
+  /**
+   * Weapon instance condition 0–100 (100 = fresh).
+   * Reduced by wearPerMagazine × magazines expended in combat.
+   * Missing/undefined treated as 100 for older saves.
+   */
+  weaponCondition?: number;
   /** Equipment / gear item ids (kit, armor stubs — catalog later). */
   gearIds: string[];
 }

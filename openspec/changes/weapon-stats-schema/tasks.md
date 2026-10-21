@@ -13,9 +13,9 @@
 
 ## 3. Deferred hooks (tracked, not blocking MVP of this change)
 
-- [ ] 3.1 (Deferred) Use MoA + range bands for hit chance when engagement distance exists
-- [ ] 3.2 (Deferred) Apply `wearPerMagazine` to weapon instance condition and jam/reliability over time
-- [ ] 3.3 (Deferred) Model recoil/handling in individual/elite firing and reload cadence via `reloadSeconds`/`ammoCapacity`
+- [x] 3.1 Use MoA + range bands for hit chance when engagement distance exists — done in `weapon-combat-hooks`
+- [x] 3.2 Apply `wearPerMagazine` to weapon instance condition and jam/reliability over time — done in `weapon-combat-hooks`
+- [x] 3.3 Model recoil/handling reload cadence via `reloadSeconds`/`ammoCapacity` — done in `weapon-combat-hooks`
 
 ## 4. Docs and validate
 
@@ -25,4 +25,4 @@
 ## Workflow follow-up
 
 - Archive after review when requested.
-- Implement deferred tasks 3.x in a later change once range/wear systems exist.
+- Deferred tasks 3.x implemented by change `weapon-combat-hooks`.

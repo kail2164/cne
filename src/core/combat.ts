@@ -1,5 +1,5 @@
 import { applyJobResolution, getContract } from "./board.js";
-import { getCaliber } from "./catalog.js";
+import { getCaliber, getRifle } from "./catalog.js";
 import {
   checkContractAcceptance,
   estimateSuccessChance,
@@ -14,7 +14,7 @@ import {
   planInitiative,
   resolveVolley,
 } from "./power.js";
-import { STAMINA_DRAIN_PER_TICK } from "./soldier.js";
+import { STAMINA_DRAIN_PER_TICK, weaponConditionOf } from "./soldier.js";
 import { applyMissionMorale } from "./upkeep.js";
 import type {
   ActionResult,
@@ -38,15 +38,31 @@ function totalAmmo(soldiers: Soldier[]): number {
   return living(soldiers).reduce((n, s) => n + (s.loadout?.ammoRounds ?? 0), 0);
 }
 
+/**
+ * Spend ammo across living loadouts and apply magazine wear.
+ * Wear = (roundsSpent / ammoCapacity) × wearPerMagazine → weaponCondition.
+ */
 function consumeAmmo(soldiers: Soldier[], amount: number): number {
   let remaining = amount;
   let spent = 0;
   for (const s of living(soldiers)) {
     if (!s.loadout || remaining <= 0) continue;
     const take = Math.min(s.loadout.ammoRounds, remaining);
+    if (take <= 0) continue;
     s.loadout.ammoRounds -= take;
     remaining -= take;
     spent += take;
+
+    const w = getRifle(s.loadout.weaponId);
+    if (w) {
+      const mag = Math.max(1, w.ammoCapacity);
+      const magazines = take / mag;
+      const before = weaponConditionOf(s.loadout);
+      s.loadout.weaponCondition = Math.max(
+        0,
+        Number((before - magazines * w.wearPerMagazine).toFixed(3)),
+      );
+    }
   }
   return spent;
 }
@@ -117,6 +133,13 @@ function avgSupplyEfficiency(soldiers: Soldier[]): number {
     const c = getCaliber(s.loadout!.ammoCaliberId);
     return n + (c?.supplyEfficiency ?? 1);
   }, 0);
+  return sum / live.length;
+}
+
+function avgWeaponCondition(soldiers: Soldier[]): number {
+  const live = living(soldiers).filter((s) => s.loadout);
+  if (live.length === 0) return 100;
+  const sum = live.reduce((n, s) => n + weaponConditionOf(s.loadout), 0);
   return sum / live.length;
 }
 
@@ -257,7 +280,11 @@ export function progressCombatMonth(
     ...s,
     perkIds: [...s.perkIds],
     loadout: s.loadout
-      ? { ...s.loadout, gearIds: [...(s.loadout.gearIds ?? [])] }
+      ? {
+          ...s.loadout,
+          weaponCondition: weaponConditionOf(s.loadout),
+          gearIds: [...(s.loadout.gearIds ?? [])],
+        }
       : null,
   }));
 
@@ -294,6 +321,7 @@ export function progressCombatMonth(
     describeMatchup(friendly, enemy),
   ];
   if (advantages.length) parts.push(`adv [${advantages.join("+")}]`);
+  const condBefore = avgWeaponCondition(soldiers);
 
   if (liveBefore === 0) {
     parts.push("No combat-ready troops left.");
@@ -370,6 +398,10 @@ export function progressCombatMonth(
   }
 
   drainStamina(soldiers);
+  const condAfter = avgWeaponCondition(soldiers);
+  if (condAfter < condBefore - 0.01) {
+    parts.push(`wear cond ${condBefore.toFixed(1)}→${condAfter.toFixed(1)}`);
+  }
   note = parts.join(". ") + ".";
 
   const turnsRemaining = Math.max(0, mission.turnsRemaining - 1);

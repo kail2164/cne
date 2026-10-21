@@ -92,7 +92,21 @@ export function emptyLoadout(
   ammoCaliberId: AmmoId,
   ammoRounds = 0,
 ): Loadout {
-  return { weaponId, ammoCaliberId, ammoRounds, gearIds: [] };
+  return {
+    weaponId,
+    ammoCaliberId,
+    ammoRounds,
+    weaponCondition: 100,
+    gearIds: [],
+  };
+}
+
+/** Loadout weapon condition (0–100); missing → 100. */
+export function weaponConditionOf(loadout: Loadout | null | undefined): number {
+  if (!loadout) return 100;
+  const c = loadout.weaponCondition;
+  if (c === undefined || c === null || Number.isNaN(c)) return 100;
+  return Math.min(100, Math.max(0, c));
 }
 
 export function createRecruitSoldier(

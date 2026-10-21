@@ -1,12 +1,13 @@
 import { effectiveDamage, effectivePenetration, getCaliber, getRifle } from "./catalog.js";
 import { isArmed } from "./gear.js";
-import { soldierCombatFactor } from "./soldier.js";
+import { soldierCombatFactor, weaponConditionOf } from "./soldier.js";
 import type {
   CombatType,
   Contract,
   ContractTier,
   GameState,
   Soldier,
+  Weapon,
 } from "./types.js";
 
 /** Fire-rate / reliability factor (shared with readiness power). */
@@ -33,16 +34,29 @@ export interface ForceProfile {
   loadoutQuality: number;
   morale: number;
   experience: number;
+  /** Effective range ~80% hit band (m). */
   rangeM: number;
+  /** Max range ~30% hit band (m). */
+  maxRangeM: number;
   penetration: number;
   armor: number;
   damagePerEntity: number;
   hpPerEntity: number;
   /** Aggregate readiness / matchup score. */
   power: number;
-  /** Average accuracy 0–100 (friendly) or tier baseline (enemy). */
+  /** Combined aim accuracy 0–100 (soldier + MoA for friendly). */
   accuracy: number;
+  /** Catalog reliability before wear (enemies: tier stub). */
   reliabilityPct: number;
+  /** Wear-adjusted reliability used in hit chance. */
+  effectiveReliabilityPct: number;
+  /** Average MoA at 200 m (lower = tighter); enemies use a tier stub. */
+  moa: number;
+  /**
+   * Recoil / handling / reload(+capacity) tempo-control multiplier.
+   * Enemies default to 1.
+   */
+  tempoFactor: number;
 }
 
 export interface VolleyResult {
@@ -64,14 +78,17 @@ export interface InitiativePlan {
 
 const TIER_ENEMY: Record<
   ContractTier,
-  { rangeM: number; pen: number; armor: number; loadoutQ: number; morale: number; exp: number; accuracy: number }
+  { rangeM: number; maxRangeM: number; pen: number; armor: number; loadoutQ: number; morale: number; exp: number; accuracy: number; moa: number }
 > = {
-  local: { rangeM: 320, pen: 45, armor: 40, loadoutQ: 45, morale: 55, exp: 30, accuracy: 48 },
-  province: { rangeM: 380, pen: 52, armor: 48, loadoutQ: 55, morale: 58, exp: 40, accuracy: 52 },
-  interstate: { rangeM: 420, pen: 58, armor: 55, loadoutQ: 62, morale: 60, exp: 50, accuracy: 55 },
-  national: { rangeM: 480, pen: 65, armor: 62, loadoutQ: 70, morale: 65, exp: 60, accuracy: 58 },
-  global: { rangeM: 550, pen: 72, armor: 70, loadoutQ: 78, morale: 70, exp: 70, accuracy: 62 },
+  local: { rangeM: 320, maxRangeM: 900, pen: 45, armor: 40, loadoutQ: 45, morale: 55, exp: 30, accuracy: 48, moa: 3.5 },
+  province: { rangeM: 380, maxRangeM: 1100, pen: 52, armor: 48, loadoutQ: 55, morale: 58, exp: 40, accuracy: 52, moa: 3.2 },
+  interstate: { rangeM: 420, maxRangeM: 1300, pen: 58, armor: 55, loadoutQ: 62, morale: 60, exp: 50, accuracy: 55, moa: 3.0 },
+  national: { rangeM: 480, maxRangeM: 1500, pen: 65, armor: 62, loadoutQ: 70, morale: 65, exp: 60, accuracy: 58, moa: 2.8 },
+  global: { rangeM: 550, maxRangeM: 1700, pen: 72, armor: 70, loadoutQ: 78, morale: 70, exp: 70, accuracy: 62, moa: 2.6 },
 };
+
+/** Reference mag cycle (~G98: 5 rd @ 12 rpm + 7.5 s reload). */
+const REF_MAG_CYCLE_SEC = 5 / (12 / 60) + 7.5;
 
 /** Deterministic escort zone from contract id. */
 export function escortZoneFor(contractId: string): EscortZone {
@@ -89,6 +106,42 @@ function avg(nums: number[], fallback = 0): number {
   return nums.reduce((a, b) => a + b, 0) / nums.length;
 }
 
+/** Convert MoA at 200 m to a 0–100 weapon accuracy (lower MoA → higher). */
+export function moaToWeaponAccuracy(moa: number): number {
+  return clamp(100 - moa * 12, 35, 98);
+}
+
+/** Combine soldier aim with weapon MoA accuracy. */
+export function combinedAccuracy(soldierAccuracy: number, moa: number): number {
+  const weaponAcc = moaToWeaponAccuracy(moa);
+  return clamp(0.55 * soldierAccuracy + 0.45 * weaponAcc, 5, 98);
+}
+
+/**
+ * Reliability after wear: condition 100 → full catalog %; 0 → half.
+ */
+export function reliabilityAfterWear(reliabilityPct: number, condition: number): number {
+  const c = clamp(condition, 0, 100) / 100;
+  return reliabilityPct * (0.5 + 0.5 * c);
+}
+
+/**
+ * Tempo / control from recoil, handling, reload, capacity (+ soldier strength/agility).
+ */
+export function weaponTempoFactor(
+  weapon: Weapon,
+  soldier?: { strength: number; agility: number },
+): number {
+  const fireRps = Math.max(0.05, weapon.fireRateRpm / 60);
+  const magCycleSec = weapon.ammoCapacity / fireRps + weapon.reloadSeconds;
+  const reloadTempo = clamp(REF_MAG_CYCLE_SEC / Math.max(1, magCycleSec), 0.75, 1.3);
+  const strength = soldier?.strength ?? 55;
+  const agility = soldier?.agility ?? 55;
+  const recoilCtrl = clamp(1.08 - (weapon.recoil - strength * 0.65) / 180, 0.75, 1.12);
+  const handlingF = clamp(0.88 + weapon.handling / 450 + agility / 600, 0.8, 1.15);
+  return reloadTempo * recoilCtrl * handlingF;
+}
+
 /** Loadout quality 0–100 from weapon+ammo pair. */
 export function loadoutQualityFor(soldier: Soldier): number {
   if (!soldier.loadout) return 0;
@@ -98,9 +151,11 @@ export function loadoutQualityFor(soldier: Soldier): number {
   const dmg = c.baseDamage + w.damage;
   const pen = c.basePenetration + w.penetration;
   const fire = clamp(w.fireRateRpm / 20, 0.5, 1.2);
-  const reli = w.reliabilityPct / 100;
+  const reli = reliabilityAfterWear(w.reliabilityPct, weaponConditionOf(soldier.loadout)) / 100;
+  const moaQ = moaToWeaponAccuracy(w.accuracyMoaAt200m) / 100;
+  const tempo = weaponTempoFactor(w, soldier);
   // Typical 1910 rifle pair → ~55–70
-  return clamp(dmg * 2.2 + pen * 0.35 + fire * 15 + reli * 20, 0, 100);
+  return clamp(dmg * 2.2 + pen * 0.35 + fire * 15 + reli * 18 + moaQ * 8 + (tempo - 1) * 20, 0, 100);
 }
 
 /**
@@ -118,6 +173,7 @@ export function computeFriendlyProfile(soldiers: Soldier[]): ForceProfile {
       morale: 0,
       experience: 0,
       rangeM: 0,
+      maxRangeM: 0,
       penetration: 0,
       armor: 25,
       damagePerEntity: 0,
@@ -125,13 +181,15 @@ export function computeFriendlyProfile(soldiers: Soldier[]): ForceProfile {
       power: 0,
       accuracy: 0,
       reliabilityPct: 0,
+      effectiveReliabilityPct: 0,
+      moa: 0,
+      tempoFactor: 1,
     };
   }
 
   const loadoutQuality = avg(live.map(loadoutQualityFor));
   const morale = avg(live.map((s) => s.loyalty));
   const experience = avg(live.map((s) => Math.min(100, s.experience)));
-  const accuracy = avg(live.map((s) => s.accuracy));
   const quality =
     0.45 * (loadoutQuality / 100) +
     0.25 * (morale / 100) +
@@ -140,9 +198,14 @@ export function computeFriendlyProfile(soldiers: Soldier[]): ForceProfile {
 
   let factorSum = 0;
   let rangeSum = 0;
+  let maxRangeSum = 0;
   let penSum = 0;
   let dmgSum = 0;
   let reliSum = 0;
+  let effReliSum = 0;
+  let moaSum = 0;
+  let accSum = 0;
+  let tempoSum = 0;
   let armed = 0;
 
   for (const s of live) {
@@ -150,18 +213,29 @@ export function computeFriendlyProfile(soldiers: Soldier[]): ForceProfile {
     const w = getRifle(s.loadout.weaponId);
     if (!w) continue;
     armed += 1;
+    const condition = weaponConditionOf(s.loadout);
     factorSum += weaponFireFactor(w.id) * soldierCombatFactor(s);
     rangeSum += w.effectiveRangeM80pct;
+    maxRangeSum += w.maxRangeM30pct;
     penSum += effectivePenetration(s.loadout.weaponId, s.loadout.ammoCaliberId);
     dmgSum += effectiveDamage(s.loadout.weaponId, s.loadout.ammoCaliberId);
     reliSum += w.reliabilityPct;
+    effReliSum += reliabilityAfterWear(w.reliabilityPct, condition);
+    moaSum += w.accuracyMoaAt200m;
+    accSum += combinedAccuracy(s.accuracy, w.accuracyMoaAt200m);
+    tempoSum += weaponTempoFactor(w, s);
   }
 
   const avgFactor = armed > 0 ? factorSum / armed : 0;
   const rangeM = armed > 0 ? rangeSum / armed : 0;
+  const maxRangeM = armed > 0 ? maxRangeSum / armed : 0;
   const penetration = armed > 0 ? penSum / armed : 0;
   const damagePerEntity = armed > 0 ? dmgSum / armed : 0;
   const reliabilityPct = armed > 0 ? reliSum / armed : 70;
+  const effectiveReliabilityPct = armed > 0 ? effReliSum / armed : 70;
+  const moa = armed > 0 ? moaSum / armed : 3;
+  const accuracy = armed > 0 ? accSum / armed : avg(live.map((s) => s.accuracy));
+  const tempoFactor = armed > 0 ? tempoSum / armed : 1;
   const hpPerEntity = avg(live.map((s) => s.maxHp), 100);
   // Soft armor stub from strength/gear — no full armor catalog yet
   const armor = 28 + avg(live.map((s) => s.strength)) * 0.25;
@@ -176,6 +250,7 @@ export function computeFriendlyProfile(soldiers: Soldier[]): ForceProfile {
     morale: Number(morale.toFixed(1)),
     experience: Number(experience.toFixed(1)),
     rangeM: Number(rangeM.toFixed(0)),
+    maxRangeM: Number(maxRangeM.toFixed(0)),
     penetration: Number(penetration.toFixed(1)),
     armor: Number(armor.toFixed(1)),
     damagePerEntity: Number(damagePerEntity.toFixed(2)),
@@ -183,6 +258,9 @@ export function computeFriendlyProfile(soldiers: Soldier[]): ForceProfile {
     power: Number(power.toFixed(1)),
     accuracy: Number(accuracy.toFixed(1)),
     reliabilityPct: Number(reliabilityPct.toFixed(1)),
+    effectiveReliabilityPct: Number(effectiveReliabilityPct.toFixed(1)),
+    moa: Number(moa.toFixed(2)),
+    tempoFactor: Number(tempoFactor.toFixed(3)),
   };
 }
 
@@ -201,9 +279,11 @@ export function computeEnemyProfile(
   let morale = base.morale;
   let experience = base.exp;
   let rangeM = base.rangeM;
+  let maxRangeM = base.maxRangeM;
   let penetration = base.pen;
   let armor = base.armor;
   let accuracy = base.accuracy;
+  let moa = base.moa;
   let label = "enemy";
 
   if (opts.thieves) {
@@ -213,9 +293,11 @@ export function computeEnemyProfile(
     morale *= 0.7;
     experience *= 0.5;
     rangeM *= 0.65;
+    maxRangeM *= 0.65;
     penetration *= 0.55;
     armor *= 0.5;
     accuracy *= 0.75;
+    moa *= 1.15;
   }
 
   const hpPool = opts.oppositionHp ?? contract.oppositionHp;
@@ -231,6 +313,7 @@ export function computeEnemyProfile(
     0.1;
   // Align scale with friendly power so matchups are readable
   const power = size * quality * 1.05 * 22;
+  const reliabilityPct = opts.thieves ? 55 : 70;
 
   return {
     label,
@@ -239,13 +322,17 @@ export function computeEnemyProfile(
     morale: Number(morale.toFixed(1)),
     experience: Number(experience.toFixed(1)),
     rangeM: Number(rangeM.toFixed(0)),
+    maxRangeM: Number(maxRangeM.toFixed(0)),
     penetration: Number(penetration.toFixed(1)),
     armor: Number(armor.toFixed(1)),
     damagePerEntity: Number(damagePerEntity.toFixed(2)),
     hpPerEntity: Number(hpPerEntity.toFixed(2)),
     power: Number(power.toFixed(1)),
     accuracy: Number(accuracy.toFixed(1)),
-    reliabilityPct: opts.thieves ? 55 : 70,
+    reliabilityPct,
+    effectiveReliabilityPct: reliabilityPct,
+    moa: Number(moa.toFixed(2)),
+    tempoFactor: 1,
   };
 }
 
@@ -297,6 +384,7 @@ export function planInitiative(contract: Contract): InitiativePlan {
 /**
  * Hit chance at engagement range.
  * Band: ≤ effectiveRange80 → full; between effective and maxRange30 → lerp 0.8→0.3; beyond → 0.15.
+ * Uses wear-adjusted reliability when provided via attacker.effectiveReliabilityPct.
  */
 export function hitChanceAtRange(
   attacker: ForceProfile,
@@ -314,7 +402,11 @@ export function hitChanceAtRange(
     rangeFactor = 0.8 - t * 0.5;
   }
   const base = clamp((attacker.accuracy / 100) * 0.7 + 0.25, 0.05, 0.95);
-  return clamp(base * rangeFactor * (attacker.reliabilityPct / 100), 0.05, 0.95);
+  const reli =
+    attacker.effectiveReliabilityPct > 0
+      ? attacker.effectiveReliabilityPct
+      : attacker.reliabilityPct;
+  return clamp(base * rangeFactor * (reli / 100), 0.05, 0.95);
 }
 
 export function choosesStandoff(friendly: ForceProfile, enemy: ForceProfile): boolean {
@@ -330,7 +422,7 @@ export function hasRangeAdvantage(friendly: ForceProfile, enemy: ForceProfile): 
 }
 
 /**
- * One volley: damage = damagePerEntity × size × hitChance × penFactor.
+ * One volley: damage = damagePerEntity × size × hitChance × penFactor × tempoFactor.
  * When `mitigateIncoming`, hit chance is crushed (out-range / out-armor).
  */
 export function resolveVolley(
@@ -342,9 +434,8 @@ export function resolveVolley(
     opts.standoffRange ??
     Math.min(attacker.rangeM || 300, defender.rangeM || 300);
 
-  // Approximate max range as 1.8× effective for profiles without weapon max
   const effective80 = attacker.rangeM || 300;
-  const max30 = effective80 * 1.8;
+  const max30 = attacker.maxRangeM > 0 ? attacker.maxRangeM : effective80 * 1.8;
 
   let hit = hitChanceAtRange(attacker, engagementRangeM, effective80, max30);
   let mitigated = false;
@@ -353,13 +444,14 @@ export function resolveVolley(
     mitigated = true;
   }
 
+  const tempo = attacker.tempoFactor > 0 ? attacker.tempoFactor : 1;
   const rawPool = attacker.damagePerEntity * attacker.size * hit;
   const penFactor = clamp(attacker.penetration / Math.max(1, defender.armor), 0.35, 1.4);
-  const damageDealt = rawPool * penFactor;
+  const damageDealt = rawPool * penFactor * tempo;
 
   const note = mitigated
-    ? `mitigated hit ${(hit * 100).toFixed(0)}% → ${damageDealt.toFixed(1)} dmg`
-    : `hit ${(hit * 100).toFixed(0)}% × pen ${penFactor.toFixed(2)} → ${damageDealt.toFixed(1)} dmg`;
+    ? `mitigated hit ${(hit * 100).toFixed(0)}% × t${tempo.toFixed(2)} → ${damageDealt.toFixed(1)} dmg`
+    : `hit ${(hit * 100).toFixed(0)}% × pen ${penFactor.toFixed(2)} × t${tempo.toFixed(2)} → ${damageDealt.toFixed(1)} dmg`;
 
   return {
     hitChance: Number(hit.toFixed(3)),
@@ -388,7 +480,8 @@ export function describeMatchup(friendly: ForceProfile, enemy: ForceProfile): st
   return (
     `pwr ${friendly.power.toFixed(0)} vs ${enemy.power.toFixed(0)} ` +
     `(${friendly.size} men Q${friendly.loadoutQuality.toFixed(0)}/` +
-    `M${friendly.morale.toFixed(0)}/E${friendly.experience.toFixed(0)} vs ` +
+    `M${friendly.morale.toFixed(0)}/E${friendly.experience.toFixed(0)} ` +
+    `MoA${friendly.moa.toFixed(1)} t${friendly.tempoFactor.toFixed(2)} vs ` +
     `${enemy.label} ${enemy.size})`
   );
 }

@@ -189,6 +189,7 @@ export function armSoldiers(
       weaponId: rifle.id,
       ammoCaliberId: ammo.id,
       ammoRounds: mag,
+      weaponCondition: s.loadout?.weaponCondition ?? 100,
       gearIds: s.loadout?.gearIds ?? ["basic-pouch"],
     };
     const updated: Soldier = {

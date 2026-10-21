@@ -328,11 +328,20 @@ export function effectivePenetration(weaponId: string, ammoCaliberId: string): n
   return c.basePenetration + w.penetration;
 }
 
-/** Combat live stats today; MoA/range/wear/recoil/handling reserved for later. */
+/** Combat-consumed weapon fields (engagement + factory/logistics). */
 export const WEAPON_STATS_COMBAT_LIVE = [
   "damage",
   "fireRateRpm",
   "reliabilityPct",
+  "accuracyMoaAt200m",
+  "effectiveRangeM80pct",
+  "maxRangeM30pct",
+  "wearPerMagazine",
+  "ammoCapacity",
+  "recoil",
+  "handling",
+  "reloadSeconds",
+  "penetration",
   "productionCost",
   "weight",
 ] as const;
