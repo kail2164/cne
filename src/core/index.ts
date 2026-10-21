@@ -83,6 +83,8 @@ export {
 export { endTurn, formatDate } from "./turn.js";
 
 export {
+  RECRUIT_COST_STEP,
+  RECRUIT_COST_MULT,
   companyTroopCount,
   companyReserveCount,
   companyTotalAmmo,
@@ -91,6 +93,9 @@ export {
   livingPop,
   countByDuty,
   listSoldiers,
+  recruitUnitCostAt,
+  currentRecruitUnitCost,
+  quoteRecruitBatch,
   recruitSoldiers,
   armSoldiers,
   issueCompanyAmmo,

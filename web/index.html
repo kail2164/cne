@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Conflict Never Ends</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="top">
+        <h1>Conflict Never Ends</h1>
+        <p class="tag">1910 logistics — browser shell over core</p>
+      </header>
+
+      <section id="status" class="panel"></section>
+
+      <section class="grid">
+        <div class="panel">
+          <h2>Caliber</h2>
+          <div id="caliber"></div>
+        </div>
+        <div class="panel">
+          <h2>Recruit</h2>
+          <div id="recruit"></div>
+        </div>
+        <div class="panel">
+          <h2>Factory</h2>
+          <div id="factory"></div>
+        </div>
+        <div class="panel">
+          <h2>Research</h2>
+          <div id="research"></div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>Contract board</h2>
+        <div id="board"></div>
+      </section>
+
+      <section class="panel actions">
+        <button type="button" id="btn-end">End turn</button>
+        <button type="button" id="btn-arm">Arm reserves</button>
+        <button type="button" id="btn-ammo">Issue ammo (35)</button>
+      </section>
+
+      <section class="panel">
+        <h2>Log</h2>
+        <pre id="log" class="log"></pre>
+      </section>
+    </div>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

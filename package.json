@@ -7,7 +7,9 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "play": "tsx src/index.ts",
-    "demo": "tsx src/index.ts --demo"
+    "demo": "tsx src/index.ts --demo",
+    "web": "vite",
+    "web:build": "vite build"
   },
   "engines": {
     "node": ">=18"
@@ -15,6 +17,7 @@
   "devDependencies": {
     "@types/node": "^26.6.5",
     "tsx": "^4.19.2",
-    "typescript": "^5.7.2"
+    "typescript": "^5.7.2",
+    "vite": "^6.3.5"
   }
 }

@@ -51,6 +51,7 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
     factories: [startingBlacksmith()],
     factoryTierNextPrice: {},
     company: { name: companyName, soldiers: [] },
+    lifetimeRecruitsHired: 0,
     barracksPopSlots: START.barracksPopSlots,
     squads: [],
     mealPlanId: "army-stew",

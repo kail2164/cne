@@ -3,6 +3,7 @@ node_modules/
 
 # Build / cache
 dist/
+dist-web/
 build/
 *.tsbuildinfo
 .tsx/

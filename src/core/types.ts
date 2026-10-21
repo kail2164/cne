@@ -470,6 +470,11 @@ export interface GameState {
    */
   factoryTierNextPrice: Partial<Record<FactoryTierId, number>>;
   company: Company;
+  /**
+   * Lifetime soldiers successfully hired (never decreases).
+   * Drives recruit cost: base × (1.2)^floor(lifetime / 10).
+   */
+  lifetimeRecruitsHired: number;
   /** Army size cap from barracks / buildings. */
   barracksPopSlots: number;
   /** Infantry formations (fire team → division). */

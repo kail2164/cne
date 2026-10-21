@@ -62,35 +62,77 @@ export function listSoldiers(state: GameState): string[] {
   });
 }
 
+/** +20% compound per 10 lifetime hires: base × (1.2)^floor(n/10). */
+export const RECRUIT_COST_STEP = 10;
+export const RECRUIT_COST_MULT = 1.2;
+
+/** Unit hire cost given lifetime hires already completed. */
+export function recruitUnitCostAt(lifetimeHired: number): number {
+  const tier = Math.floor(Math.max(0, lifetimeHired) / RECRUIT_COST_STEP);
+  return Math.round(START.recruitCostPerSoldier * Math.pow(RECRUIT_COST_MULT, tier));
+}
+
+/** Current next-hire unit price. */
+export function currentRecruitUnitCost(state: GameState): number {
+  return recruitUnitCostAt(state.lifetimeRecruitsHired);
+}
+
+/**
+ * Progressive batch cost for `count` hires starting at `lifetimeHired`.
+ * Returns how many can be afforded with `funds` and the total cost.
+ */
+export function quoteRecruitBatch(
+  lifetimeHired: number,
+  count: number,
+  funds: number,
+): { recruited: number; cost: number } {
+  let cost = 0;
+  let recruited = 0;
+  for (let i = 0; i < count; i++) {
+    const unit = recruitUnitCostAt(lifetimeHired + i);
+    if (cost + unit > funds) break;
+    cost += unit;
+    recruited += 1;
+  }
+  return { recruited, cost };
+}
+
 /**
  * Recruit: money + 1 pop each. No weapon required → reserve.
- * Warns when adding unpaid mouths.
+ * Cost scales +20% per 10 lifetime hires (progressive within a batch).
  */
 export function recruitSoldiers(
   state: GameState,
   count: number,
-): ActionResult<{ recruited: number }> {
+): ActionResult<{ recruited: number; unitCost: number; cost: number }> {
   if (count <= 0) {
-    return { ok: false, state, message: "Recruit at least 1 soldier.", data: { recruited: 0 } };
+    return {
+      ok: false,
+      state,
+      message: "Recruit at least 1 soldier.",
+      data: { recruited: 0, unitCost: currentRecruitUnitCost(state), cost: 0 },
+    };
   }
 
-  const affordable = Math.floor(state.funds / START.recruitCostPerSoldier);
   const openSlots = Math.max(0, state.barracksPopSlots - livingPop(state));
-  const recruited = Math.min(count, affordable, openSlots);
+  const want = Math.min(count, openSlots);
+  const quote = quoteRecruitBatch(state.lifetimeRecruitsHired, want, state.funds);
+  const recruited = quote.recruited;
+  const unitCost = currentRecruitUnitCost(state);
 
   if (recruited <= 0) {
     const reasons: string[] = [];
-    if (affordable <= 0) reasons.push("insufficient funds");
+    if (state.funds < unitCost) reasons.push(`insufficient funds (need $${unitCost}/ea)`);
     if (openSlots <= 0) reasons.push("barracks pop slots full");
     return {
       ok: false,
       state,
-      message: `Cannot recruit (${reasons.join(", ")}).`,
-      data: { recruited: 0 },
+      message: `Cannot recruit (${reasons.join(", ") || "none"}).`,
+      data: { recruited: 0, unitCost, cost: 0 },
     };
   }
 
-  const cost = recruited * START.recruitCostPerSoldier;
+  const cost = quote.cost;
   const baseId = state.company.soldiers.length;
   const newSoldiers: Soldier[] = Array.from({ length: recruited }, (_, i) => {
     const id = `s-${baseId + i + 1}`;
@@ -107,21 +149,25 @@ export function recruitSoldiers(
 
   const capped =
     recruited < count
-      ? ` (capped from ${count}: funds allow ${affordable}, slots ${openSlots})`
+      ? ` (capped from ${count}: funds/slots; next $${recruitUnitCostAt(state.lifetimeRecruitsHired + recruited)}/ea)`
       : "";
+
+  const nextLifetime = state.lifetimeRecruitsHired + recruited;
+  const nextPrice = recruitUnitCostAt(nextLifetime);
 
   return {
     ok: true,
     state: {
       ...state,
       funds: state.funds - cost,
+      lifetimeRecruitsHired: nextLifetime,
       company: {
         ...state.company,
         soldiers: [...state.company.soldiers, ...newSoldiers],
       },
     },
-    message: `Recruited ${recruited} ($${cost}) into reserve.${capped}${warn}`,
-    data: { recruited },
+    message: `Recruited ${recruited} ($${cost}, was $${unitCost}/ea → next $${nextPrice}/ea, lifetime ${nextLifetime}).${capped}${warn}`,
+    data: { recruited, unitCost, cost },
   };
 }
 

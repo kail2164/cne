@@ -33,6 +33,7 @@ import {
   livingPop,
   nextTierPrice,
   parseLoadSubtype,
+  currentRecruitUnitCost,
   recruitSoldiers,
   remainingCapacity,
   selectCaliber,
@@ -88,7 +89,7 @@ function printStatus(state: GameState): void {
     `  Tier: ${tier.currentLabel} | next unlock ${tier.completionsTowardNext}/${tier.completionsRequired}${tier.nextLabel ? ` → ${tier.nextLabel}` : " (max)"} | wins ${tier.jobsCompletedTotal}`,
   );
   console.log(
-    `  Roster: ${livingPop(state)}/${state.barracksPopSlots} pop | armed ${companyTroopCount(state)} | reserve ${companyReserveCount(state)} | meal ${meal?.name ?? state.mealPlanId}`,
+    `  Roster: ${livingPop(state)}/${state.barracksPopSlots} pop | armed ${companyTroopCount(state)} | reserve ${companyReserveCount(state)} | hire $${currentRecruitUnitCost(state)}/ea (life ${state.lifetimeRecruitsHired}) | meal ${meal?.name ?? state.mealPlanId}`,
   );
   if (state.activeMission) {
     const c = getContract(state.activeMission.contractId);
@@ -311,6 +312,10 @@ Actions:
         break;
       }
       case 3: {
+        const unit = currentRecruitUnitCost(state);
+        console.log(
+          `  Current hire $${unit}/ea (lifetime ${state.lifetimeRecruitsHired}; +20% per 10 hires).`,
+        );
         const want = await askNumber(rl, "Recruit count [10]: ", 10);
         const r = recruitSoldiers(state, Math.max(0, want));
         state = r.state;
