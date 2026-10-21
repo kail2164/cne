@@ -2,17 +2,20 @@ import * as readline from "node:readline/promises";
 import { stdin as input, stdout as output } from "node:process";
 import {
   COMPLETIONS_PER_TIER,
+  FACTORY_TIERS,
   FOODS,
   LOAD_SUBTYPE_LABEL,
   LOAD_SUBTYPES,
   LOCAL_CONTRACT,
   armSoldiers,
+  buyFactory,
   companyPower,
   companyReserveCount,
   companyTotalAmmo,
   companyTroopCount,
   createCampaign,
   describeBoard,
+  describeFactories,
   describeOrg,
   endTurn,
   formFireTeam,
@@ -28,16 +31,21 @@ import {
   listSoldiers,
   listStartingCalibers,
   livingPop,
+  nextTierPrice,
   parseLoadSubtype,
   recruitSoldiers,
   remainingCapacity,
   selectCaliber,
   setFactoryProduct,
+  setFactorySlotProduct,
   setLoadSubtype,
   setMealPlan,
   startContract,
+  upgradeCost,
+  upgradeFactory,
   type CaliberId,
-  type FactoryProduct,
+  type FactoryProductKind,
+  type FactoryTierId,
   type GameState,
 } from "./core/index.js";
 
@@ -47,15 +55,18 @@ function printHeader(title: string): void {
 
 function printStatus(state: GameState): void {
   const rem = remainingCapacity(state.warehouse);
-  const lock = state.factory.locked ? "locked" : "open";
-  const product = state.factory.product ?? "idle";
+  const fac0 = state.factories[0];
+  const slot0 = fac0?.slots[0];
+  const facNote = fac0
+    ? `${fac0.tierId} s${fac0.stage} ${slot0?.product ?? "idle"}${slot0?.locked ? "*" : ""}${state.factories.length > 1 ? ` (+${state.factories.length - 1})` : ""}`
+    : "none";
   const tier = getTierProgress(state);
   const load = getSelectedAmmo(state);
   const loadNote = state.selectedCaliberId
     ? ` | load ${LOAD_SUBTYPE_LABEL[state.selectedLoadSubtype]}${load ? ` $${load.productionCost}/rd` : ""}`
     : "";
   console.log(
-    `${formatDate(state)} | funds $${state.funds.toFixed(0)} | factory: ${product} (${lock}) | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}${loadNote}`,
+    `${formatDate(state)} | funds $${state.funds.toFixed(0)} | plant: ${facNote} | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}${loadNote}`,
   );
   const meal = getFood(state.mealPlanId);
   console.log(
@@ -152,17 +163,17 @@ function runDemo(): void {
   state = pick.state;
   console.log(`\n1) ${pick.message}`);
 
-  let set = setFactoryProduct(state, "rifles");
+  let set = setFactoryProduct(state, "weapons");
   state = set.state;
   console.log(`2) ${set.message}`);
-  console.log("   Ending turn ×4 (rifle months)...");
+  console.log("   Ending turn ×4 (weapon months — blacksmith 5 guns/cycle)...");
   state = doEndTurns(state, 4);
   printStatus(state);
 
   set = setFactoryProduct(state, "ammo");
   state = set.state;
   console.log(`\n3) ${set.message}`);
-  console.log("   Ending turn ×3 (ammo months)...");
+  console.log("   Ending turn ×3 (ammo months — 250 rd/cycle)...");
   state = doEndTurns(state, 3);
   printStatus(state);
 
@@ -231,7 +242,7 @@ async function interactive(): Promise<void> {
     printBoard(state);
     console.log(`
 Actions:
-  1) Set factory product (ammo | rifles)
+  1) Set factory slot product (ammo|weapons|gears|grenades)
   2) End turn (+1 month; factory + mission + upkeep)
   3) Recruit (money + pop → reserve)
   4) Arm reserves (rifle + magazine)
@@ -243,16 +254,32 @@ Actions:
   10) Form fire team (roster #s, 3–5)
   11) Form squad (fire team ids + CDR roster #)
   12) List org
-  13) Quit
+  13) List factories
+  14) Buy factory (tier)
+  15) Upgrade factory
+  16) Quit
 `);
     const choice = await askNumber(rl, "Choice [2]: ", 2);
     switch (choice) {
       case 1: {
+        describeFactories(state).forEach((l) => console.log(`  ${l}`));
+        const facIdx = await askNumber(rl, "Factory # [1]: ", 1);
+        const fac =
+          state.factories[Math.min(Math.max(facIdx, 1), state.factories.length) - 1];
+        if (!fac) {
+          console.log("No factory.");
+          break;
+        }
+        const slotN = await askNumber(rl, `Slot # [1]: `, 1);
         const raw = (
-          await ask(rl, "Product [ammo/rifles]: ", state.factory.product ?? "ammo")
+          await ask(rl, "Product [ammo/weapons/gears/grenades]: ", "ammo")
         ).toLowerCase();
-        const product = (raw.startsWith("r") ? "rifles" : "ammo") as FactoryProduct;
-        const r = setFactoryProduct(state, product);
+        let product: FactoryProductKind = "ammo";
+        if (raw.startsWith("w") || raw.startsWith("r")) product = "weapons";
+        else if (raw.startsWith("ge")) product = "gears";
+        else if (raw.startsWith("gr")) product = "grenades";
+        else if (raw.startsWith("v")) product = "vehicles";
+        const r = setFactorySlotProduct(state, fac.id, Math.max(0, slotN - 1), product);
         state = r.state;
         console.log(r.message);
         break;
@@ -374,7 +401,49 @@ Actions:
         else lines.forEach((l) => console.log(`  ${l}`));
         break;
       }
-      case 13:
+      case 13: {
+        const lines = describeFactories(state);
+        if (lines.length === 0) console.log("  (no factories)");
+        else lines.forEach((l) => console.log(`  ${l}`));
+        FACTORY_TIERS.forEach((t) => {
+          console.log(
+            `  buy ${t.id}: $${nextTierPrice(state, t.id)} (base ammo ${t.baseAmmo} / guns ${t.baseWeapons})`,
+          );
+        });
+        break;
+      }
+      case 14: {
+        FACTORY_TIERS.forEach((t, i) =>
+          console.log(`  ${i + 1}. ${t.id} — ${t.name} $${nextTierPrice(state, t.id)}`),
+        );
+        const n = await askNumber(rl, "Tier # [1=blacksmith]: ", 1);
+        const tier = FACTORY_TIERS[Math.min(Math.max(n, 1), FACTORY_TIERS.length) - 1]!;
+        const r = buyFactory(state, tier.id as FactoryTierId);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 15: {
+        describeFactories(state).forEach((l) => console.log(`  ${l}`));
+        const n = await askNumber(rl, "Factory # to upgrade [1]: ", 1);
+        const fac =
+          state.factories[Math.min(Math.max(n, 1), state.factories.length) - 1];
+        if (!fac) {
+          console.log("No factory.");
+          break;
+        }
+        const cost = upgradeCost(fac);
+        console.log(
+          cost == null
+            ? "  Already max stage."
+            : `  Upgrade cost $${cost} → stage ${fac.stage + 1}`,
+        );
+        const r = upgradeFactory(state, fac.id);
+        state = r.state;
+        console.log(r.message);
+        break;
+      }
+      case 16:
         playing = false;
         break;
       default:

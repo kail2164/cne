@@ -58,7 +58,27 @@ export {
   withdrawItems,
 } from "./warehouse.js";
 
-export { setFactoryProduct, resolveFactoryMonth } from "./factory.js";
+export {
+  FACTORY_TIERS,
+  GRENADES,
+  MAX_FACTORY_STAGE,
+  getFactoryTier,
+  getGrenade,
+  stageOutputMult,
+  slotCountForStage,
+  normalizeProduct,
+  createOwnedFactory,
+  startingBlacksmith,
+  nextTierPrice,
+  upgradeCost,
+  describeFactories,
+  buyFactory,
+  upgradeFactory,
+  setFactorySlotProduct,
+  setFactoryProduct,
+  unlockAllFactorySlots,
+  resolveFactoryMonth,
+} from "./factory.js";
 
 export { endTurn, formatDate } from "./turn.js";
 

@@ -259,23 +259,57 @@ export interface Soldier {
   woundedRestTicks: number;
 }
 
-/** Single factory product for the current monthly cycle. */
-export type FactoryProduct = "ammo" | "rifles";
+/** Manufacture product kinds (vehicles stub — no output yet). */
+export type FactoryProductKind =
+  | "ammo"
+  | "weapons"
+  | "gears"
+  | "grenades"
+  | "vehicles";
 
 /**
- * Simplified factory: one product at a time, money-only, locked until end turn.
- * @deprecated FactoryLine / %-splits removed from play.
+ * CLI/demo alias. `"rifles"` maps to `"weapons"`.
+ * @deprecated Prefer FactoryProductKind.
  */
-export interface FactoryState {
-  /** Product chosen for this cycle; null = idle. */
-  product: FactoryProduct | null;
-  /** Once true, product cannot change until endTurn. */
+export type FactoryProduct = FactoryProductKind | "rifles";
+
+export type FactoryTierId =
+  | "blacksmith"
+  | "workshop"
+  | "manufactory"
+  | "arsenal"
+  | "industrial";
+
+export interface FactorySlot {
+  /** Product for this month; null = idle. */
+  product: FactoryProductKind | null;
+  /** Locked after set until end turn. */
   locked: boolean;
-  /** Capacity points resolved once per month on end turn. */
-  monthlyCapacity: number;
 }
 
-export type StockKind = "raw_materials" | "weapon" | "ammo";
+export interface OwnedFactory {
+  id: string;
+  tierId: FactoryTierId;
+  /** Upgrade stage 1–5; stage 5 unlocks second slot. */
+  stage: number;
+  slots: FactorySlot[];
+}
+
+/** Catalog row for a factory tier. */
+export interface FactoryTierDef {
+  id: FactoryTierId;
+  name: string;
+  /** First-copy build cost in funds. */
+  baseBuildCost: number;
+  baseAmmo: number;
+  baseWeapons: number;
+  baseGears: number;
+  baseGrenades: number;
+  /** Multiplier on unit manufacture costs. */
+  unitCostMult: number;
+}
+
+export type StockKind = "raw_materials" | "weapon" | "ammo" | "gear" | "grenade";
 
 export interface StockEntry {
   kind: StockKind;
@@ -358,7 +392,13 @@ export interface GameState {
   /** Active load subtype for factory / issue (default FMJ). */
   selectedLoadSubtype: LoadSubtype;
   warehouse: Warehouse;
-  factory: FactoryState;
+  /** Owned manufacture plants. */
+  factories: OwnedFactory[];
+  /**
+   * Next purchase price per factory tier (2× after each buy).
+   * Missing key → use tier baseBuildCost.
+   */
+  factoryTierNextPrice: Partial<Record<FactoryTierId, number>>;
   company: Company;
   /** Army size cap from barracks / buildings. */
   barracksPopSlots: number;
@@ -437,12 +477,24 @@ export interface ReadinessReport {
   failures: string[];
 }
 
+export interface CycleProductionLine {
+  factoryId: string;
+  slotIndex: number;
+  product: FactoryProductKind;
+  quantity: number;
+  fundsSpent: number;
+  note: string;
+}
+
 export interface CycleProductionResult {
   producedAmmo: number;
   producedRifles: number;
+  producedGears: number;
+  producedGrenades: number;
   fundsSpent: number;
   shortfalls: string[];
   warehouseNotes: string[];
+  lines: CycleProductionLine[];
 }
 
 export interface UpkeepResult {

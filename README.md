@@ -91,8 +91,8 @@ Loadout includes `gearIds[]` alongside weapon/ammo.
 
 ## Turns, factory & combat
 
-- **1 cycle = 1 month.** End turn advances the calendar and resolves factory + active mission combat.
-- **Factory:** one product (ammo|rifles), money only, locked until end turn.
+- **1 cycle = 1 month.** End turn advances the calendar and resolves factories + active mission combat.
+- **Factory:** start with a **blacksmith** (250 ammo or 5 guns/cycle); buy tiers, upgrade 5 stages (+50% each, stage 5 = 2 slots); products ammo/weapons/gears/grenades (vehicles stub). See `factory-production-upgrades`.
 - **Contracts:** board ≤10 jobs; `turnsNeeded` months; accept starts a mission; each end turn = one combat month.
 - **Tiers:** Local → Provinces → Interstates → National → Global; **20 victories** to unlock the next tier; higher tiers need stronger army and pay better.
 - **Power / engagement:** company power from size + loadout quality + morale + experience; monthly fights use initiative by combat type, hit/range/pen × size damage, and very low incoming when out-ranging or out-armoring (see `power-combat-engagement`).

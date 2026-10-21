@@ -8,6 +8,7 @@ import {
   getCaliberFamily,
   getRifleForCaliber,
 } from "./catalog.js";
+import { startingBlacksmith } from "./factory.js";
 import type {
   ActionResult,
   CaliberId,
@@ -41,11 +42,8 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
       maxVolume: START.warehouseMaxVolume,
       stocks: [materialStock(START.rawMaterials)],
     },
-    factory: {
-      product: null,
-      locked: false,
-      monthlyCapacity: START.factoryMonthlyCapacity,
-    },
+    factories: [startingBlacksmith()],
+    factoryTierNextPrice: {},
     company: { name: companyName, soldiers: [] },
     barracksPopSlots: START.barracksPopSlots,
     squads: [],

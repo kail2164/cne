@@ -273,7 +273,6 @@ export const START = {
   rawMaterials: 1400,
   warehouseMaxWeight: 2500,
   warehouseMaxVolume: 1800,
-  factoryMonthlyCapacity: 100,
   recruitCostPerSoldier: 25,
   barracksPopSlots: 40,
   defaultSquadSize: 20,

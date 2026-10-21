@@ -1,5 +1,5 @@
 import { progressCombatMonth } from "./combat.js";
-import { resolveFactoryMonth } from "./factory.js";
+import { resolveFactoryMonth, unlockAllFactorySlots } from "./factory.js";
 import { resolveMonthlyUpkeep } from "./upkeep.js";
 import type { ActionResult, BarrackDuty, EndTurnResult, GameState } from "./types.js";
 
@@ -35,15 +35,7 @@ export function endTurn(state: GameState): ActionResult<EndTurnResult> {
   const previousMonth = state.month;
 
   const production = resolveFactoryMonth(state);
-  let next = production.state;
-
-  next = {
-    ...next,
-    factory: {
-      ...next.factory,
-      locked: false,
-    },
-  };
+  let next = unlockAllFactorySlots(production.state);
 
   const hadMission = Boolean(next.activeMission);
   const combat = progressCombatMonth(next);
@@ -75,9 +67,12 @@ export function endTurn(state: GameState): ActionResult<EndTurnResult> {
       production: production.data ?? {
         producedAmmo: 0,
         producedRifles: 0,
+        producedGears: 0,
+        producedGrenades: 0,
         fundsSpent: 0,
         shortfalls: [],
         warehouseNotes: [],
+        lines: [],
       },
       combatNote,
       missionResolved,
