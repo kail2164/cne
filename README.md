@@ -15,7 +15,7 @@ Pure TypeScript core (`src/core`) + CLI adapter (`src/index.ts`):
 1. Pick a starting **caliber family** (unlocks matching bolt-action)
 2. Set the **factory** to one product (`ammo` or `rifles`) — **money only**, locked for the month
 3. **End turn** → production resolves and the calendar advances (**1 cycle = 1 month**)
-4. **Recruit** / issue loadout / fight a **Local** contract (combat uses mission ticks; month only advances on end turn)
+4. **Recruit** / issue loadout / **accept a contract** (`turnsNeeded` months) — each **End turn** fights one combat month until the mission resolves
 
 Research trees, vehicles/garages, and higher contract tiers are stubbed for later phases. Architecture keeps game rules out of the UI so Phaser/Pixi/React can sit on the same core later.
 
@@ -89,12 +89,12 @@ Loadout includes `gearIds[]` alongside weapon/ammo.
 **Live:** accuracy / light str+agi / experience / exhaustion + stamina drain.  
 **Deferred:** perk catalog, food-from-weight, gear encumbrance, HP wounds, salary ticks — see `soldier-stats-schema`.
 
-## Turns & factory (OpenSpec `turn-based-factory-months`)
+## Turns, factory & combat
 
-- **Turn-based:** manage during the month, then end turn → new cycle.
-- **1 cycle = 1 month** (`year` / `month` / `turn` on `GameState`).
-- **Factory:** one product at a time, funds only, product locked until you end the turn.
-- Combat `durationMinutes` / ticks are mission-internal and do not advance the calendar.
+- **1 cycle = 1 month.** End turn advances the calendar and resolves factory + active mission combat.
+- **Factory:** one product (ammo|rifles), money only, locked until end turn.
+- **Contracts:** `turnsNeeded` months; accept starts a mission; each end turn = one combat month step (no separate minute-tick loop).
+- Try: `npm start` → accept local contract → **2) End turn** until mission resolves (or `npm run demo`).
 
 ## Systems stats (OpenSpec `systems-stats-schema`)
 

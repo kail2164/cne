@@ -8,6 +8,7 @@ import {
   createCampaign,
   endTurn,
   formatDate,
+  getContract,
   getQuantity,
   issueCompanyAmmo,
   listContracts,
@@ -16,7 +17,7 @@ import {
   remainingCapacity,
   selectCaliber,
   setFactoryProduct,
-  simulateCombat,
+  startContract,
   type CaliberId,
   type FactoryProduct,
   type GameState,
@@ -33,6 +34,12 @@ function printStatus(state: GameState): void {
   console.log(
     `${formatDate(state)} | funds $${state.funds.toFixed(0)} | factory: ${product} (${lock}) | free wt ${rem.weight.toFixed(0)} / vol ${rem.volume.toFixed(0)}`,
   );
+  if (state.activeMission) {
+    const c = getContract(state.activeMission.contractId);
+    console.log(
+      `  MISSION: ${c?.name ?? state.activeMission.contractId} — ${state.activeMission.turnsRemaining}/${state.activeMission.turnsNeeded} turns left | oppHP ${state.activeMission.oppositionHp.toFixed(0)}`,
+    );
+  }
   console.log(
     `  materials ${getQuantity(state.warehouse, "raw_materials", "raw")} (not used by factory)`,
   );
@@ -66,30 +73,25 @@ function doEndTurns(state: GameState, count: number): GameState {
     console.log(`  ${ended.message}`);
     const notes = ended.data?.production.warehouseNotes ?? [];
     for (const n of notes) console.log(`    ! ${n}`);
+    if (ended.data?.missionResolved) {
+      const r = ended.data.missionResolved;
+      console.log(`\n  Mission resolved: ${r.summary}`);
+      if (r.log.length) {
+        console.log("  Combat months:");
+        for (const e of r.log) {
+          console.log(
+            `    M${e.month}: ammo ${e.ammoBefore}→${e.ammoAfter} | cas ${e.friendlyCasualties} | living ${e.livingAfter} | oppHP ${e.oppositionHpAfter} | ${e.note}`,
+          );
+        }
+      }
+    }
   }
   return next;
 }
 
-function printCombat(state: GameState, contractId: string): GameState {
-  const result = simulateCombat(state, contractId);
-  console.log(`\n${result.message}`);
-  if (result.data?.log.length) {
-    console.log("\nCombat log (mission ticks — calendar unchanged until end turn):");
-    for (const e of result.data.log) {
-      console.log(
-        `  T${e.tick}: ammo ${e.ammoBefore}→${e.ammoAfter} | cas ${e.friendlyCasualties} | living ${e.livingAfter} | oppHP ${e.oppositionHpAfter} | ${e.note}`,
-      );
-    }
-    console.log(
-      `\nOutcome: ${result.data.won ? "VICTORY" : result.data.retreated ? "RETREAT" : "DEFEAT"} | success ~${result.data.successChance}% | KIA ${result.data.casualties} | wounded ${result.data.wounded} | loot +$${result.data.lootFunds}`,
-    );
-  }
-  return result.state;
-}
-
 function runDemo(): void {
-  printHeader("Conflict Never Ends — Demo (monthly turns)");
-  console.log("Caliber → factory product → end turns → recruit → contract → combat\n");
+  printHeader("Conflict Never Ends — Demo (monthly combat)");
+  console.log("Factory months → recruit → accept contract → end turns until fight resolves\n");
 
   let state = createCampaign("Iron Company");
   printStatus(state);
@@ -123,11 +125,17 @@ function runDemo(): void {
     `   Readiness: ${companyTroopCount(state)} troops, power ${companyPower(state).toFixed(1)}, ammo ${companyTotalAmmo(state)}`,
   );
 
-  console.log(`\n6) Contract: ${LOCAL_CONTRACT.name}`);
-  state = printCombat(state, LOCAL_CONTRACT.id);
+  const accept = startContract(state, LOCAL_CONTRACT.id);
+  state = accept.state;
+  console.log(`\n6) ${accept.message}`);
+  printStatus(state);
 
-  console.log("\n7) End turn after battle (new month)...");
-  state = doEndTurns(state, 1);
+  console.log("\n7) Ending turns until mission resolves...");
+  let guard = 0;
+  while (state.activeMission && guard < 10) {
+    state = doEndTurns(state, 1);
+    guard += 1;
+  }
   printStatus(state);
 
   console.log("\nDemo complete.");
@@ -135,8 +143,8 @@ function runDemo(): void {
 
 async function interactive(): Promise<void> {
   const rl = readline.createInterface({ input, output });
-  printHeader("Conflict Never Ends — Turn-based (1 cycle = 1 month)");
-  console.log("Manage, then end turn to produce & advance the calendar.\n");
+  printHeader("Conflict Never Ends — Monthly turns + combat");
+  console.log("Accept a contract, then End turn to fight one month at a time.\n");
 
   let state = createCampaign(
     (await ask(rl, "Company name [1st Provisional Company]: ", "1st Provisional Company")),
@@ -165,11 +173,11 @@ async function interactive(): Promise<void> {
     printStatus(state);
     console.log(`
 Actions:
-  1) Set factory product (ammo | rifles) — locked until end turn
-  2) End turn (resolve production, +1 month)
+  1) Set factory product (ammo | rifles)
+  2) End turn (+1 month; advances factory + active mission)
   3) Recruit
   4) Issue ammo loadout
-  5) Take local contract (combat; does not advance month)
+  5) Accept local contract (${LOCAL_CONTRACT.turnsNeeded} turns needed)
   6) Quit
 `);
     const choice = await askNumber(rl, "Choice [2]: ", 2);
@@ -210,9 +218,13 @@ Actions:
       case 5: {
         listContracts().forEach((c, i) => {
           const lock = c.tier === "local" ? "" : " [LOCKED]";
-          console.log(`  ${i + 1}. ${c.name} (${c.tier})${lock}`);
+          console.log(
+            `  ${i + 1}. ${c.name} — ${c.turnsNeeded} turn(s) needed (${c.tier})${lock}`,
+          );
         });
-        state = printCombat(state, LOCAL_CONTRACT.id);
+        const r = startContract(state, LOCAL_CONTRACT.id);
+        state = r.state;
+        console.log(r.message);
         break;
       }
       case 6:

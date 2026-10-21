@@ -1,3 +1,4 @@
+import { progressCombatMonth } from "./combat.js";
 import { resolveFactoryMonth } from "./factory.js";
 import type { ActionResult, BarrackDuty, EndTurnResult, GameState } from "./types.js";
 
@@ -25,8 +26,8 @@ function tickWounded(state: GameState): GameState {
 }
 
 /**
- * End the current turn/cycle (= 1 month):
- * resolve factory → unlock product lock → advance calendar → wounded recovery tick.
+ * End turn (= 1 month):
+ * factory resolve → unlock factory → combat month step (if mission) → calendar → wounded tick.
  */
 export function endTurn(state: GameState): ActionResult<EndTurnResult> {
   const previousYear = state.year;
@@ -43,6 +44,12 @@ export function endTurn(state: GameState): ActionResult<EndTurnResult> {
     },
   };
 
+  const hadMission = Boolean(next.activeMission);
+  const combat = progressCombatMonth(next);
+  next = combat.state;
+  const combatNote = hadMission ? combat.message : null;
+  const missionResolved = combat.data?.resolved ?? null;
+
   const cal = advanceCalendar(next.year, next.month);
   next = {
     ...next,
@@ -54,10 +61,11 @@ export function endTurn(state: GameState): ActionResult<EndTurnResult> {
   next = tickWounded(next);
 
   const label = `${cal.year}-${String(cal.month).padStart(2, "0")}`;
+  const combatPart = combatNote ? ` ${combatNote}` : "";
   return {
     ok: true,
     state: next,
-    message: `End turn → ${label} (turn ${next.turn}). ${production.message}`,
+    message: `End turn → ${label} (turn ${next.turn}). ${production.message}.${combatPart}`,
     data: {
       production: production.data ?? {
         producedAmmo: 0,
@@ -66,6 +74,8 @@ export function endTurn(state: GameState): ActionResult<EndTurnResult> {
         shortfalls: [],
         warehouseNotes: [],
       },
+      combatNote,
+      missionResolved,
       previousMonth,
       previousYear,
       month: next.month,

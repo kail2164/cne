@@ -52,7 +52,7 @@ export {
   estimateSuccessChance,
 } from "./logistics.js";
 
-export { simulateCombat } from "./combat.js";
+export { startContract, progressCombatMonth } from "./combat.js";
 
 export {
   EXHAUSTION_FACTOR,

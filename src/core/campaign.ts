@@ -35,6 +35,7 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
     squads: [],
     garage: [],
     researchUnlocked: [],
+    activeMission: null,
   };
 }
 

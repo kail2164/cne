@@ -273,18 +273,33 @@ export interface Contract {
   minPower: number;
   recommendedAmmoPerSoldier: number;
   oppositionHp: number;
-  oppositionDamagePerTick: number;
-  maxTicks: number;
+  /** Opposition damage applied each monthly combat step. */
+  oppositionDamagePerTurn: number;
+  /** Months of end-turns needed for the mission timeline. */
+  turnsNeeded: number;
   /** Cash reward in funds. */
   cashReward: number;
   lootMaterials: number;
   itemRewards: ContractItemReward[];
   combatType: CombatType;
   terrain: CombatTerrain;
-  /** Expected time to complete in minutes. */
-  durationMinutes: number;
   /** Base success chance 0–100 before squad/terrain modifiers. */
   baseSuccessChance: number;
+}
+
+/** In-progress contract mission; advances one combat step per end-turn. */
+export interface ActiveMission {
+  contractId: string;
+  turnsNeeded: number;
+  turnsRemaining: number;
+  oppositionHp: number;
+  successChance: number;
+  startAmmo: number;
+  startLiving: number;
+  dryMonths: number;
+  log: CombatLogEntry[];
+  /** Set when mission finished this end-turn. */
+  resolved?: CombatResult;
 }
 
 export interface Company {
@@ -309,6 +324,8 @@ export interface GameState {
   squads: Squad[];
   garage: Vehicle[];
   researchUnlocked: string[];
+  /** Current contract mission, or null. */
+  activeMission: ActiveMission | null;
 }
 
 export interface ActionResult<T = void> {
@@ -319,13 +336,15 @@ export interface ActionResult<T = void> {
 }
 
 export interface CombatLogEntry {
-  tick: number;
+  /** Month step index within the mission (1-based). */
+  month: number;
   ammoBefore: number;
   ammoAfter: number;
   ammoExhausted: boolean;
   friendlyCasualties: number;
   livingAfter: number;
   oppositionHpAfter: number;
+  turnsRemainingAfter: number;
   note: string;
 }
 
@@ -360,6 +379,8 @@ export interface CycleProductionResult {
 
 export interface EndTurnResult {
   production: CycleProductionResult;
+  combatNote: string | null;
+  missionResolved: CombatResult | null;
   previousMonth: number;
   previousYear: number;
   month: number;

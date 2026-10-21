@@ -7,6 +7,7 @@ import {
 import { STAMINA_DRAIN_PER_TICK, soldierCombatFactor } from "./soldier.js";
 import type {
   ActionResult,
+  ActiveMission,
   CombatLogEntry,
   CombatResult,
   GameState,
@@ -14,17 +15,11 @@ import type {
 } from "./types.js";
 import { storeAsMany } from "./warehouse.js";
 
-function cloneSoldiers(soldiers: Soldier[]): Soldier[] {
-  return soldiers.map((s) => ({
-    ...s,
-    perkIds: [...s.perkIds],
-    loadout: s.loadout
-      ? { ...s.loadout, gearIds: [...(s.loadout.gearIds ?? [])] }
-      : null,
-  }));
+function living(soldiers: Soldier[]): Soldier[] {
+  return soldiers.filter((s) => s.alive && s.duty !== "wounded");
 }
 
-function living(soldiers: Soldier[]): Soldier[] {
+function allLiving(soldiers: Soldier[]): Soldier[] {
   return soldiers.filter((s) => s.alive);
 }
 
@@ -57,10 +52,6 @@ function applyCasualties(soldiers: Soldier[], count: number): number {
   return killed;
 }
 
-/**
- * Firepower: (caliber.baseDamage + weapon.damage) × rate/reliability × soldier factors.
- * Penetration (base+weapon) reserved for cover sim later.
- */
 function firepower(soldiers: Soldier[]): number {
   return living(soldiers).reduce((sum, s) => {
     if (!s.loadout) return sum;
@@ -73,7 +64,6 @@ function firepower(soldiers: Soldier[]): number {
   }, 0);
 }
 
-/** At high success, convert some KIA into wounded-with-rest; at 100% revive all tick KIA. */
 function applySuccessWoundModel(
   soldiers: Soldier[],
   successChance: number,
@@ -108,7 +98,7 @@ function applySuccessWoundModel(
 
 function drainStamina(soldiers: Soldier[]): void {
   for (const s of living(soldiers)) {
-    s.stamina = Math.max(0, s.stamina - STAMINA_DRAIN_PER_TICK);
+    s.stamina = Math.max(0, s.stamina - STAMINA_DRAIN_PER_TICK * 2);
   }
 }
 
@@ -131,129 +121,68 @@ function avgSupplyEfficiency(soldiers: Soldier[]): number {
   return sum / live.length;
 }
 
-export function simulateCombat(
+function emptyResult(summary: string): CombatResult {
+  return {
+    won: false,
+    retreated: false,
+    log: [],
+    ammoExpended: 0,
+    casualties: 0,
+    wounded: 0,
+    successChance: 0,
+    lootFunds: 0,
+    lootMaterials: 0,
+    summary,
+  };
+}
+
+/** Accept a contract — starts an active mission; combat steps happen on endTurn. */
+export function startContract(
   state: GameState,
   contractId: string,
-): ActionResult<CombatResult> {
-  const gate = checkContractAcceptance(state, contractId);
-  if (!gate.ok) {
+): ActionResult<{ mission: ActiveMission }> {
+  if (state.activeMission) {
     return {
       ok: false,
       state,
-      message: gate.message,
-      data: {
-        won: false,
-        retreated: false,
-        log: [],
-        ammoExpended: 0,
-        casualties: 0,
-        wounded: 0,
-        successChance: 0,
-        lootFunds: 0,
-        lootMaterials: 0,
-        summary: gate.message,
-      },
+      message: `Already on mission ${state.activeMission.contractId} (${state.activeMission.turnsRemaining} turns left).`,
     };
   }
-
+  const gate = checkContractAcceptance(state, contractId);
+  if (!gate.ok) {
+    return { ok: false, state, message: gate.message };
+  }
   const contract = getContract(contractId)!;
   const successChance = estimateSuccessChance(state, contract);
-  const soldiers = cloneSoldiers(state.company.soldiers);
-  const startLiving = living(soldiers).length;
-  const startAmmo = totalAmmo(soldiers);
+  const mission: ActiveMission = {
+    contractId,
+    turnsNeeded: contract.turnsNeeded,
+    turnsRemaining: contract.turnsNeeded,
+    oppositionHp: contract.oppositionHp,
+    successChance,
+    startAmmo: totalAmmo(state.company.soldiers),
+    startLiving: allLiving(state.company.soldiers).length,
+    dryMonths: 0,
+    log: [],
+  };
+  return {
+    ok: true,
+    state: { ...state, activeMission: mission },
+    message: `Accepted ${contract.name}: ${contract.turnsNeeded} month(s) needed. End turns to fight.`,
+    data: { mission },
+  };
+}
 
-  let oppositionHp = contract.oppositionHp;
-  let dryTicks = 0;
-  const log: CombatLogEntry[] = [];
-  let retreated = false;
-  let won = false;
-
-  for (let tick = 1; tick <= contract.maxTicks; tick++) {
-    const ammoBefore = totalAmmo(soldiers);
-    const liveBefore = living(soldiers).length;
-    if (liveBefore === 0) break;
-
-    let note = "";
-    let ammoExhausted = ammoBefore <= 0;
-    let spent = 0;
-    let friendlyCasualties = 0;
-
-    const exhaustedBefore = living(soldiers).filter((s) => s.stamina <= 0).length;
-
-    if (!ammoExhausted) {
-      const eff = avgSupplyEfficiency(soldiers);
-      const want = Math.max(1, Math.ceil(liveBefore / Math.max(0.5, eff)));
-      spent = consumeAmmo(soldiers, want);
-      const dmg = firepower(soldiers) * 0.55;
-      oppositionHp = Math.max(0, oppositionHp - dmg);
-      note = `Volley — spent ${spent} rounds, hit for ${dmg.toFixed(1)}.`;
-      dryTicks = 0;
-    } else {
-      dryTicks += 1;
-      note = "Ammo exhausted — bayonets and sidearms only.";
-      const desperation = firepower(soldiers) * 0.12;
-      oppositionHp = Math.max(0, oppositionHp - desperation);
-      const selfHits = Math.max(1, Math.ceil(liveBefore * 0.25));
-      friendlyCasualties += applyCasualties(soldiers, selfHits);
-      if (dryTicks >= 2) {
-        retreated = true;
-        note += " Forced retreat.";
-      }
-    }
-
-    drainStamina(soldiers);
-    if (exhaustedBefore > 0) {
-      note += ` Exhausted×0.6: ${exhaustedBefore}.`;
-    }
-
-    if (oppositionHp > 0 && living(soldiers).length > 0 && !retreated) {
-      const incoming = contract.oppositionDamagePerTick;
-      const deaths = Math.max(
-        0,
-        Math.floor(incoming / 12 + (ammoExhausted ? 1 : 0)),
-      );
-      friendlyCasualties += applyCasualties(soldiers, deaths);
-      note += ` Enemy returns fire (${deaths} down).`;
-    }
-
-    const ammoAfter = totalAmmo(soldiers);
-    log.push({
-      tick,
-      ammoBefore,
-      ammoAfter,
-      ammoExhausted,
-      friendlyCasualties,
-      livingAfter: living(soldiers).length,
-      oppositionHpAfter: Number(oppositionHp.toFixed(1)),
-      note,
-    });
-
-    if (oppositionHp <= 0) {
-      won = true;
-      break;
-    }
-    if (living(soldiers).length === 0 || retreated) {
-      break;
-    }
-  }
-
-  if (!won && !retreated && living(soldiers).length > 0 && oppositionHp > 0) {
-    retreated = true;
-    log.push({
-      tick: log.length + 1,
-      ammoBefore: totalAmmo(soldiers),
-      ammoAfter: totalAmmo(soldiers),
-      ammoExhausted: totalAmmo(soldiers) <= 0,
-      friendlyCasualties: 0,
-      livingAfter: living(soldiers).length,
-      oppositionHpAfter: Number(oppositionHp.toFixed(1)),
-      note: "Time expired — withdraw under pressure.",
-    });
-  }
-
-  const tickCasualties = startLiving - living(soldiers).length;
-  const woundPass = applySuccessWoundModel(soldiers, successChance);
-  const ammoExpended = startAmmo - totalAmmo(soldiers);
+function finalizeMission(
+  state: GameState,
+  mission: ActiveMission,
+  won: boolean,
+  retreated: boolean,
+): { state: GameState; result: CombatResult } {
+  const contract = getContract(mission.contractId)!;
+  const soldiers = state.company.soldiers;
+  const woundPass = applySuccessWoundModel(soldiers, mission.successChance);
+  const ammoExpended = mission.startAmmo - totalAmmo(soldiers);
   const lootFunds = won ? contract.cashReward : 0;
   const lootMaterials = won ? contract.lootMaterials : 0;
 
@@ -261,8 +190,9 @@ export function simulateCombat(
 
   let next: GameState = {
     ...state,
-    company: { ...state.company, soldiers },
+    company: { ...state.company, soldiers: [...soldiers] },
     funds: state.funds + lootFunds,
+    activeMission: null,
   };
 
   if (lootMaterials > 0) {
@@ -271,26 +201,164 @@ export function simulateCombat(
   }
 
   const summary = won
-    ? `Victory at ${contract.name} (success ~${successChance}%). Tick cas ${tickCasualties}, KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}, loot +${lootFunds} / +${lootMaterials} mat.`
+    ? `Victory at ${contract.name} (success ~${mission.successChance}%). KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}, loot +$${lootFunds}.`
     : retreated
-      ? `Retreat from ${contract.name} (success ~${successChance}%). KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}.`
-      : `Defeat at ${contract.name} (success ~${successChance}%). KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}.`;
+      ? `Retreat from ${contract.name}. KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}.`
+      : `Defeat at ${contract.name}. KIA ${woundPass.kiaKept}, wounded ${woundPass.wounded}, ammo ${ammoExpended}.`;
+
+  const result: CombatResult = {
+    won,
+    retreated,
+    log: mission.log,
+    ammoExpended,
+    casualties: woundPass.kiaKept,
+    wounded: woundPass.wounded,
+    successChance: mission.successChance,
+    lootFunds,
+    lootMaterials,
+    summary,
+  };
+
+  return { state: next, result };
+}
+
+/**
+ * One monthly combat step. Called from endTurn while a mission is active.
+ * Mutates soldier loadouts/alive on the returned state.
+ */
+export function progressCombatMonth(
+  state: GameState,
+): ActionResult<{ note: string; resolved: CombatResult | null }> {
+  const mission = state.activeMission;
+  if (!mission) {
+    return {
+      ok: true,
+      state,
+      message: "No active mission.",
+      data: { note: "", resolved: null },
+    };
+  }
+
+  const contract = getContract(mission.contractId);
+  if (!contract) {
+    return {
+      ok: false,
+      state: { ...state, activeMission: null },
+      message: "Mission contract missing; cleared.",
+      data: { note: "Mission cleared.", resolved: emptyResult("Contract missing") },
+    };
+  }
+
+  const soldiers = state.company.soldiers.map((s) => ({
+    ...s,
+    perkIds: [...s.perkIds],
+    loadout: s.loadout
+      ? { ...s.loadout, gearIds: [...(s.loadout.gearIds ?? [])] }
+      : null,
+  }));
+
+  const monthIndex = mission.turnsNeeded - mission.turnsRemaining + 1;
+  const ammoBefore = totalAmmo(soldiers);
+  const liveBefore = living(soldiers).length;
+  let oppositionHp = mission.oppositionHp;
+  let dryMonths = mission.dryMonths;
+  let retreated = false;
+  let won = false;
+  let note = "";
+  let friendlyCasualties = 0;
+  const ammoExhausted = ammoBefore <= 0;
+
+  if (liveBefore === 0) {
+    note = "No combat-ready troops left.";
+    retreated = true;
+  } else if (!ammoExhausted) {
+    const eff = avgSupplyEfficiency(soldiers);
+    const want = Math.max(
+      liveBefore,
+      Math.ceil((liveBefore * 3) / Math.max(0.5, eff)),
+    );
+    const spent = consumeAmmo(soldiers, want);
+    const dmg = firepower(soldiers) * 1.35;
+    oppositionHp = Math.max(0, oppositionHp - dmg);
+    note = `Month ${monthIndex}/${mission.turnsNeeded}: volley −${spent} ammo, hit ${dmg.toFixed(1)}.`;
+    dryMonths = 0;
+  } else {
+    dryMonths += 1;
+    note = `Month ${monthIndex}/${mission.turnsNeeded}: ammo out — bayonets.`;
+    oppositionHp = Math.max(0, oppositionHp - firepower(soldiers) * 0.15);
+    friendlyCasualties += applyCasualties(
+      soldiers,
+      Math.max(1, Math.ceil(liveBefore * 0.2)),
+    );
+    if (dryMonths >= 2) {
+      retreated = true;
+      note += " Forced retreat.";
+    }
+  }
+
+  drainStamina(soldiers);
+
+  if (oppositionHp > 0 && living(soldiers).length > 0 && !retreated) {
+    const deaths = Math.max(
+      0,
+      Math.floor(contract.oppositionDamagePerTurn / 14 + (ammoExhausted ? 1 : 0)),
+    );
+    friendlyCasualties += applyCasualties(soldiers, deaths);
+    note += ` Enemy returns (${deaths} down).`;
+  }
+
+  const turnsRemaining = Math.max(0, mission.turnsRemaining - 1);
+  const entry: CombatLogEntry = {
+    month: monthIndex,
+    ammoBefore,
+    ammoAfter: totalAmmo(soldiers),
+    ammoExhausted,
+    friendlyCasualties,
+    livingAfter: living(soldiers).length,
+    oppositionHpAfter: Number(oppositionHp.toFixed(1)),
+    turnsRemainingAfter: turnsRemaining,
+    note,
+  };
+
+  const log = [...mission.log, entry];
+  if (oppositionHp <= 0) won = true;
+  if (living(soldiers).length === 0) retreated = true;
+  if (!won && !retreated && turnsRemaining <= 0 && oppositionHp > 0) {
+    retreated = true;
+    note += " Timeline expired — withdraw.";
+    entry.note = note;
+  }
+
+  let nextMission: ActiveMission | null = {
+    ...mission,
+    turnsRemaining,
+    oppositionHp,
+    dryMonths,
+    log,
+  };
+
+  let nextState: GameState = {
+    ...state,
+    company: { ...state.company, soldiers },
+    activeMission: nextMission,
+  };
+
+  const done = won || retreated || turnsRemaining <= 0;
+  if (done) {
+    if (!won && !retreated && oppositionHp > 0) retreated = true;
+    const fin = finalizeMission(nextState, nextMission, won, retreated);
+    return {
+      ok: true,
+      state: fin.state,
+      message: fin.result.summary,
+      data: { note, resolved: fin.result },
+    };
+  }
 
   return {
     ok: true,
-    state: next,
-    message: summary,
-    data: {
-      won,
-      retreated,
-      log,
-      ammoExpended,
-      casualties: woundPass.kiaKept,
-      wounded: woundPass.wounded,
-      successChance,
-      lootFunds,
-      lootMaterials,
-      summary,
-    },
+    state: nextState,
+    message: `${note} (${turnsRemaining} turn(s) left).`,
+    data: { note, resolved: null },
   };
 }
