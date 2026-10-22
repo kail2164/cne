@@ -9,7 +9,6 @@ import {
   LOCAL_CONTRACT,
   armSoldiers,
   buyFactory,
-  companyPower,
   companyReserveCount,
   companyTotalAmmo,
   companyTroopCount,
@@ -17,6 +16,9 @@ import {
   describeBoard,
   describeFactories,
   describeOrg,
+  describeTierEconomy,
+  listManufacturable,
+  quoteManufacture,
   endTurn,
   formFireTeam,
   formSquadFromTeams,
@@ -205,7 +207,7 @@ function runDemo(): void {
   state = loadout.state;
   console.log(`6) ${loadout.message}`);
   console.log(
-    `   Readiness: ${companyTroopCount(state)} armed, ${companyReserveCount(state)} reserve, power ${companyPower(state).toFixed(1)}, ammo ${companyTotalAmmo(state)}`,
+    `   Readiness: ${companyTroopCount(state)} armed, ${companyReserveCount(state)} reserve, ammo ${companyTotalAmmo(state)}`,
   );
 
   printBoard(state);
@@ -239,7 +241,7 @@ async function interactive(): Promise<void> {
   console.log("\nStarting caliber families (FMJ baseline; HP 1.2× / AP 2× cost):");
   calibers.forEach((c, i) => {
     console.log(
-      `  ${i + 1}. ${c.name} → ${c.rifle} (FMJ $${c.productionCost}/rd, dmg ${c.baseDamage}, pen ${c.basePenetration})`,
+      `  ${i + 1}. ${c.name} → ${c.rifle} (FMJ $${c.productionCost}/rd, dmg ${c.baseDamage}, pen ${c.basePenetration} mm steel)`,
     );
   });
   const calChoice = await askNumber(rl, "Choose caliber [5=Mauser]: ", 5);
@@ -258,7 +260,7 @@ async function interactive(): Promise<void> {
     printBoard(state);
     console.log(`
 Actions:
-  1) Set factory slot product (ammo|weapons|gears|grenades)
+  1) Set factory slot product (ammo caliber, weapon name, gear, grenade)
   2) End turn (+1 month; factory + mission + upkeep)
   3) Recruit (money + pop → reserve)
   4) Arm reserves (rifle + magazine)
@@ -301,7 +303,31 @@ Actions:
         else if (raw.startsWith("ge")) product = "gears";
         else if (raw.startsWith("gr")) product = "grenades";
         else if (raw.startsWith("v")) product = "vehicles";
-        const r = setFactorySlotProduct(state, fac.id, Math.max(0, slotN - 1), product);
+        let itemId: string | undefined;
+        if (product !== "vehicles") {
+          const items = listManufacturable(state, product);
+          if (items.length === 0) {
+            console.log("  Nothing of that kind is researched.");
+            break;
+          }
+          items.forEach((item, i) => {
+            const quote = quoteManufacture(state, fac.tierId, fac.stage, item.kind, item.itemId);
+            const cost = quote
+              ? `${quote.quantity} @ $${quote.unitCost} = $${quote.funds}/mo`
+              : "";
+            console.log(`  ${i + 1}. ${item.name}${cost ? ` — ${cost}` : ""}`);
+          });
+          const pick = await askNumber(rl, "Item # [1]: ", 1);
+          const item = items[Math.min(Math.max(pick, 1), items.length) - 1]!;
+          itemId = item.itemId;
+        }
+        const r = setFactorySlotProduct(
+          state,
+          fac.id,
+          Math.max(0, slotN - 1),
+          product,
+          itemId,
+        );
         state = r.state;
         console.log(r.message);
         break;
@@ -428,14 +454,18 @@ Actions:
         break;
       }
       case 13: {
+        console.log(
+          "  Blacksmith stage 1 is cheapest. Each stage doubles output and funds. The next tier makes 2× and spends 2.5×.",
+        );
         const lines = describeFactories(state);
         if (lines.length === 0) console.log("  (no factories)");
         else lines.forEach((l) => console.log(`  ${l}`));
         FACTORY_TIERS.forEach((t) => {
           const gate = isFactoryTierUnlocked(state, t.id) ? "" : " [RESEARCH LOCKED]";
           console.log(
-            `  buy ${t.id}: $${nextTierPrice(state, t.id)} (base ammo ${t.baseAmmo} / guns ${t.baseWeapons})${gate}`,
+            `  buy ${t.id}: $${nextTierPrice(state, t.id)} · ammo ${t.baseAmmo} / guns ${t.baseWeapons} · unit ×${t.unitCostMult.toFixed(2)}${gate}`,
           );
+          console.log(`    ${describeTierEconomy(t.id)}`);
         });
         break;
       }

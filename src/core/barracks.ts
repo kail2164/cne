@@ -1,16 +1,19 @@
-import { START, getRifle, getRifleForCaliber, getSelectedAmmo } from "./catalog.js";
+import { START, getAmmo, getCaliber, getRifle, getRifleForCaliber, getSelectedAmmo } from "./catalog.js";
 import { ensureDefaultSquadFilled } from "./composition.js";
 import {
   canCarryAmmo,
   carryCapacityKg,
+  carriedWeightKg,
   describeCarry,
+  getGear,
   isArmed,
   maxAmmoCarry,
 } from "./gear.js";
 import { companyForcePower } from "./power.js";
+import { isGearUnlocked, isLoadSubtypeUnlocked, isWeaponUnlocked } from "./research.js";
 import { createRecruitSoldier } from "./soldier.js";
-import type { ActionResult, GameState, Soldier } from "./types.js";
-import { getQuantity, withdrawItems } from "./warehouse.js";
+import type { ActionResult, GameState, Loadout, Soldier } from "./types.js";
+import { getQuantity, storeItems, withdrawItems } from "./warehouse.js";
 
 function livingSoldiers(state: GameState): Soldier[] {
   return state.company.soldiers.filter((s) => s.alive);
@@ -284,6 +287,7 @@ export function armSoldiers(
 export function issueCompanyAmmo(
   state: GameState,
   roundsPerSoldier: number,
+  soldierIds?: string[],
 ): ActionResult<{ issued: number }> {
   if (!state.selectedCaliberId) {
     return {
@@ -293,8 +297,9 @@ export function issueCompanyAmmo(
       data: { issued: 0 },
     };
   }
+  const idSet = soldierIds && soldierIds.length > 0 ? new Set(soldierIds) : null;
   const troops = livingSoldiers(state).filter(
-    (s) => s.loadout?.weaponId && s.duty !== "wounded",
+    (s) => s.loadout?.weaponId && s.duty !== "wounded" && (!idSet || idSet.has(s.id)),
   );
   if (troops.length === 0) {
     return {
@@ -373,6 +378,274 @@ export function issueCompanyAmmo(
     state: next,
     message: `Issued ${issued} ${ammo.name} toward ${roundsPerSoldier}/soldier.${note}`,
     data: { issued },
+  };
+}
+
+export interface EquipChoice {
+  weaponId?: string;
+  ammoId?: string;
+  gearIds?: string[];
+}
+
+function blankLoadout(weaponId: string, ammoId: string): Loadout {
+  return {
+    weaponId,
+    ammoCaliberId: ammoId,
+    ammoRounds: 0,
+    weaponCondition: 100,
+    gearIds: [],
+  };
+}
+
+/**
+ * Draw the chosen warehouse items onto specific soldiers.
+ * One rifle and one ammunition type replace what they carry; equipment is added.
+ * Ammunition fills up to one magazine of the rifle they end up holding.
+ */
+export function equipSoldiers(
+  state: GameState,
+  soldierIds: string[],
+  choice: EquipChoice,
+): ActionResult<{ equipped: number }> {
+  const weaponId = choice.weaponId?.trim() || "";
+  const ammoId = choice.ammoId?.trim() || "";
+  const gearIds = [...new Set((choice.gearIds ?? []).map((id) => id.trim()).filter(Boolean))];
+  if (!weaponId && !ammoId && gearIds.length === 0) {
+    return { ok: false, state, message: "Select items to equip.", data: { equipped: 0 } };
+  }
+  if (soldierIds.length === 0) {
+    return {
+      ok: false,
+      state,
+      message: "Choose soldiers or a formation to equip.",
+      data: { equipped: 0 },
+    };
+  }
+
+  const idSet = new Set(soldierIds);
+  let next = state;
+  const soldiers = next.company.soldiers.map((soldier) => ({
+    ...soldier,
+    loadout: soldier.loadout
+      ? { ...soldier.loadout, gearIds: [...(soldier.loadout.gearIds ?? [])] }
+      : null,
+  }));
+  const targets = soldiers.filter(
+    (soldier) => soldier.alive && soldier.duty !== "wounded" && idSet.has(soldier.id),
+  );
+  if (targets.length === 0) {
+    return { ok: false, state, message: "No soldiers to equip.", data: { equipped: 0 } };
+  }
+
+  const notes: string[] = [];
+  let equipped = 0;
+  let rifles = 0;
+  let rounds = 0;
+  let pieces = 0;
+
+  for (const target of targets) {
+    const idx = soldiers.findIndex((soldier) => soldier.id === target.id);
+    if (idx < 0) continue;
+    let soldier = soldiers[idx]!;
+    let changed = false;
+
+    if (weaponId && soldier.loadout?.weaponId !== weaponId) {
+      const rifle = getRifle(weaponId);
+      if (!rifle) {
+        notes.push(`unknown weapon ${weaponId}`);
+      } else if (!isWeaponUnlocked(next, rifle.id)) {
+        notes.push(`${rifle.name} is not researched`);
+      } else if (getQuantity(next.warehouse, "weapon", rifle.id) < 1) {
+        notes.push(`no ${rifle.name} in warehouse`);
+      } else {
+        const taken = withdrawItems(next, "weapon", rifle.id, 1);
+        if (!taken.ok) {
+          notes.push(`no ${rifle.name} in warehouse`);
+        } else {
+          let working = taken.state;
+          const previous = soldier.loadout?.weaponId ? getRifle(soldier.loadout.weaponId) : undefined;
+          let gaveRifle = !previous;
+          if (previous) {
+            const stored = storeItems(working, "weapon", previous.id, 1, previous.weight, previous.volume);
+            if (!stored.ok) {
+              const undo = storeItems(working, "weapon", rifle.id, 1, rifle.weight, rifle.volume);
+              next = undo.ok ? undo.state : working;
+              notes.push(`no room to store ${previous.name}`);
+            } else {
+              working = stored.state;
+              gaveRifle = true;
+            }
+          }
+          if (gaveRifle) {
+            const ammoCaliberId =
+              soldier.loadout?.ammoCaliberId ?? getAmmo(rifle.caliberId, "fmj")?.id ?? `${rifle.caliberId}-fmj`;
+            soldier = {
+              ...soldier,
+              loadout: soldier.loadout
+                ? { ...soldier.loadout, weaponId: rifle.id, weaponCondition: 100 }
+                : blankLoadout(rifle.id, ammoCaliberId),
+              duty: soldier.squadId ? "ready" : "unassigned",
+            };
+            next = working;
+            changed = true;
+            rifles += 1;
+          }
+        }
+      }
+    }
+
+    if (gearIds.length > 0 && !soldier.loadout) {
+      notes.push(`${soldier.name} needs a weapon before equipment`);
+    } else if (soldier.loadout) {
+      let kit = soldier.loadout;
+      for (const gearId of gearIds) {
+        if (kit.gearIds.includes(gearId)) continue;
+        const gear = getGear(gearId);
+        if (!gear) {
+          notes.push(`unknown equipment ${gearId}`);
+          continue;
+        }
+        if (!isGearUnlocked(next, gear.id)) {
+          notes.push(`${gear.name} is not researched`);
+          continue;
+        }
+        if (getQuantity(next.warehouse, "gear", gear.id) < 1) {
+          notes.push(`no ${gear.name} in warehouse`);
+          continue;
+        }
+        const worn = carriedWeightKg({ ...soldier, loadout: kit }) + gear.weightKg;
+        if (worn > carryCapacityKg(soldier.strength) + 0.01) {
+          notes.push(`${gear.name} is too heavy for ${soldier.name}`);
+          continue;
+        }
+        const taken = withdrawItems(next, "gear", gear.id, 1);
+        if (!taken.ok) {
+          notes.push(`no ${gear.name} in warehouse`);
+          continue;
+        }
+        kit = { ...kit, gearIds: [...kit.gearIds, gear.id] };
+        soldier = { ...soldier, loadout: kit };
+        next = taken.state;
+        changed = true;
+        pieces += 1;
+      }
+    }
+
+    if (ammoId) {
+      const ammo = getCaliber(ammoId);
+      if (!ammo) {
+        notes.push(`unknown ammunition ${ammoId}`);
+      } else if (!isLoadSubtypeUnlocked(next, ammo.familyId, ammo.variant)) {
+        notes.push(`${ammo.name} is not researched`);
+      } else if (!soldier.loadout?.weaponId) {
+        notes.push(`${soldier.name} needs a weapon before ammunition`);
+      } else {
+        const rifle = getRifle(soldier.loadout.weaponId);
+        const magazine = Math.max(1, rifle?.ammoCapacity ?? 5);
+        let loadout = soldier.loadout;
+        let working = next;
+        let swapped = false;
+        if (loadout.ammoCaliberId !== ammo.id && loadout.ammoRounds > 0) {
+          if (getQuantity(working.warehouse, "ammo", ammo.id) < 1) {
+            notes.push(`no ${ammo.name} in warehouse`);
+          } else {
+            const previous = getCaliber(loadout.ammoCaliberId);
+            const stored = previous
+              ? storeItems(
+                  working,
+                  "ammo",
+                  previous.id,
+                  loadout.ammoRounds,
+                  previous.weightPerRound,
+                  previous.volumePerRound,
+                )
+              : { ok: true as const, state: working };
+            if (!stored.ok) {
+              notes.push(`no room to store ${loadout.ammoRounds} returned rounds`);
+            } else {
+              working = stored.state;
+              loadout = { ...loadout, ammoCaliberId: ammo.id, ammoRounds: 0 };
+              swapped = true;
+            }
+          }
+        } else if (loadout.ammoCaliberId !== ammo.id) {
+          loadout = { ...loadout, ammoCaliberId: ammo.id, ammoRounds: 0 };
+          swapped = true;
+        }
+
+        let add = Math.max(0, magazine - loadout.ammoRounds);
+        const carrier = { ...soldier, loadout };
+        const maxCarry = maxAmmoCarry(carrier);
+        if (loadout.ammoRounds + add > maxCarry) {
+          add = Math.max(0, maxCarry - loadout.ammoRounds);
+          notes.push(`${soldier.name} carry cap ${maxCarry}`);
+        }
+        while (add > 0 && !canCarryAmmo(carrier, add)) add -= 1;
+        const available = getQuantity(working.warehouse, "ammo", ammo.id);
+        const take = Math.min(add, available);
+        if (add > 0 && take <= 0) notes.push(`no ${ammo.name} in warehouse`);
+        if (take > 0) {
+          const taken = withdrawItems(working, "ammo", ammo.id, take);
+          if (taken.ok) {
+            working = taken.state;
+            loadout = { ...loadout, ammoCaliberId: ammo.id, ammoRounds: loadout.ammoRounds + take };
+            rounds += take;
+            swapped = true;
+          }
+        }
+        if (swapped) {
+          soldier = { ...soldier, loadout, duty: soldier.squadId ? "ready" : soldier.duty };
+          next = working;
+          changed = true;
+        }
+      }
+    }
+
+    if (changed) {
+      soldiers[idx] = soldier;
+      equipped += 1;
+    }
+  }
+
+  next = { ...next, company: { ...next.company, soldiers } };
+  const parts = [
+    rifles > 0 ? `${rifles} rifle${rifles === 1 ? "" : "s"}` : "",
+    rounds > 0 ? `${rounds} rd` : "",
+    pieces > 0 ? `${pieces} equipment` : "",
+  ].filter(Boolean);
+  const note = notes.length ? ` (${[...new Set(notes)].slice(0, 3).join("; ")})` : "";
+  return {
+    ok: equipped > 0,
+    state: next,
+    message:
+      equipped > 0
+        ? `Equipped ${equipped}: ${parts.join(", ") || "loadout updated"}.${note}`
+        : `Could not equip.${note || " Nothing in the warehouse."}`,
+    data: { equipped },
+  };
+}
+
+/** Remove a living soldier from the roster and from any formation. */
+export function dismissSoldier(state: GameState, soldierId: string): ActionResult {
+  const soldier = state.company.soldiers.find((s) => s.id === soldierId && s.alive);
+  if (!soldier) {
+    return { ok: false, state, message: "Soldier not found." };
+  }
+  const soldiers = state.company.soldiers.filter((s) => s.id !== soldierId);
+  const squads = state.squads.map((unit) => ({
+    ...unit,
+    soldierIds: unit.soldierIds.filter((id) => id !== soldierId),
+    commanderSoldierId:
+      unit.commanderSoldierId === soldierId ? null : unit.commanderSoldierId,
+  }));
+  return {
+    ok: true,
+    state: {
+      ...state,
+      company: { ...state.company, soldiers },
+      squads,
+    },
+    message: `Dismissed ${soldier.name}.`,
   };
 }
 

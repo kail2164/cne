@@ -4,6 +4,7 @@ import type {
   FactoryTierId,
   GameState,
   LoadSubtype,
+  NationId,
   ResearchKind,
   ResearchNode,
 } from "./types.js";
@@ -18,61 +19,188 @@ export const RP_PER_CONTRACT_WIN = 5;
 
 export const STARTER_UNLOCKS = ["gear-basic-pouch"] as const;
 
+type WeaponStep = {
+  id: string;
+  name: string;
+  /** Service year. Research waits until the campaign reaches it. */
+  year: number;
+  rpCost: number;
+};
+
 type FamilyPath = {
+  nation: NationId;
   familyId: CaliberFamilyId;
   label: string;
-  primaryRifleId: string;
-  primaryRifleName: string;
-  secondRifleId: string;
-  secondRifleName: string;
-  secondYear: number;
+  /** Earlier cartridge on the same national line. Starter cartridges have none. */
+  previousFamilyId?: CaliberFamilyId;
+  /** First entry is granted with the cartridge. The rest are researched in order. */
+  weapons: WeaponStep[];
 };
 
 const FAMILY_PATHS: FamilyPath[] = [
   {
+    nation: "ussr",
     familyId: "762x54r",
     label: "7.62×54mmR",
-    primaryRifleId: "mosin-m91",
-    primaryRifleName: "Mosin–Nagant M1891",
-    secondRifleId: "mosin-dragoon",
-    secondRifleName: "Mosin Dragoon",
-    secondYear: 1910,
+    weapons: [
+      { id: "mosin-m91", name: "Mosin–Nagant M1891", year: 1891, rpCost: 18 },
+      { id: "mosin-dragoon", name: "Mosin Dragoon", year: 1891, rpCost: 22 },
+      { id: "dp-27", name: "Degtyaryov DP-27", year: 1928, rpCost: 28 },
+      { id: "mosin-m9130", name: "Mosin–Nagant M1891/30", year: 1930, rpCost: 24 },
+    ],
   },
   {
+    nation: "us",
     familyId: "3006",
     label: ".30-06",
-    primaryRifleId: "springfield-m1903",
-    primaryRifleName: "Springfield M1903",
-    secondRifleId: "springfield-m1903a1",
-    secondRifleName: "Springfield M1903A1",
-    secondYear: 1912,
+    weapons: [
+      { id: "springfield-m1903", name: "Springfield M1903", year: 1903, rpCost: 18 },
+      { id: "m1917-enfield", name: "M1917 Enfield", year: 1917, rpCost: 22 },
+      { id: "bar-m1918", name: "Browning BAR M1918", year: 1918, rpCost: 28 },
+      { id: "springfield-m1903a1", name: "Springfield M1903A1", year: 1929, rpCost: 24 },
+    ],
   },
   {
+    nation: "uk",
     familyId: "303br",
     label: ".303 British",
-    primaryRifleId: "lee-enfield-smle",
-    primaryRifleName: "Lee–Enfield SMLE",
-    secondRifleId: "lee-enfield-no1mk3",
-    secondRifleName: "Lee–Enfield No.1 Mk III",
-    secondYear: 1910,
+    weapons: [
+      { id: "lee-enfield-smle", name: "Lee–Enfield SMLE", year: 1904, rpCost: 18 },
+      { id: "lee-enfield-no1mk3", name: "Lee–Enfield No.1 Mk III", year: 1907, rpCost: 22 },
+      { id: "pattern-1914", name: "Pattern 1914 Enfield", year: 1914, rpCost: 22 },
+      { id: "lewis-mk1", name: "Lewis Mk I", year: 1914, rpCost: 28 },
+    ],
   },
   {
+    nation: "france",
     familyId: "8x50r",
     label: "8×50mmR Lebel",
-    primaryRifleId: "lebel-m1886",
-    primaryRifleName: "Lebel M1886",
-    secondRifleId: "berthier-m1907",
-    secondRifleName: "Berthier M1907",
-    secondYear: 1910,
+    weapons: [
+      { id: "lebel-m1886", name: "Lebel M1886", year: 1886, rpCost: 18 },
+      { id: "berthier-m1907", name: "Berthier M1907", year: 1907, rpCost: 22 },
+      { id: "chauchat-m1915", name: "Chauchat Mle 1915", year: 1915, rpCost: 26 },
+    ],
   },
   {
+    nation: "france",
+    familyId: "75x54",
+    label: "7.5×54mm French",
+    previousFamilyId: "8x50r",
+    weapons: [{ id: "fm-24-29", name: "FM 24/29", year: 1929, rpCost: 30 }],
+  },
+  {
+    nation: "germany",
     familyId: "792x57",
     label: "7.92×57mm Mauser",
-    primaryRifleId: "gewehr-98",
-    primaryRifleName: "Gewehr 98",
-    secondRifleId: "karabiner-98a",
-    secondRifleName: "Karabiner 98a",
-    secondYear: 1910,
+    weapons: [
+      { id: "gewehr-98", name: "Gewehr 98", year: 1898, rpCost: 18 },
+      { id: "karabiner-98a", name: "Karabiner 98a", year: 1908, rpCost: 22 },
+      { id: "mg08-15", name: "MG 08/15", year: 1915, rpCost: 30 },
+      { id: "karabiner-98b", name: "Karabiner 98b", year: 1923, rpCost: 24 },
+    ],
+  },
+  {
+    nation: "italy",
+    familyId: "65x52",
+    label: "6.5×52mm Carcano",
+    weapons: [
+      { id: "carcano-m91", name: "Carcano Modello 1891", year: 1891, rpCost: 18 },
+      { id: "carcano-moschetto", name: "Carcano Moschetto 1891", year: 1893, rpCost: 20 },
+      { id: "breda-30", name: "Breda Modello 30", year: 1930, rpCost: 28 },
+    ],
+  },
+  {
+    nation: "japan",
+    familyId: "65x50sr",
+    label: "6.5×50mmSR Arisaka",
+    weapons: [
+      { id: "type-38", name: "Type 38 rifle", year: 1905, rpCost: 18 },
+      { id: "type-38-carbine", name: "Type 38 carbine", year: 1905, rpCost: 20 },
+      { id: "type-44", name: "Type 44 carbine", year: 1911, rpCost: 22 },
+      { id: "type-11", name: "Type 11 light machine gun", year: 1922, rpCost: 28 },
+    ],
+  },
+  {
+    nation: "spain",
+    familyId: "7x57",
+    label: "7×57mm Mauser",
+    weapons: [
+      { id: "mauser-1893", name: "Mauser Model 1893", year: 1893, rpCost: 18 },
+      { id: "mauser-m1916", name: "Spanish Mauser M1916", year: 1916, rpCost: 22 },
+      { id: "hotchkiss-m1922", name: "Hotchkiss M1922", year: 1922, rpCost: 28 },
+    ],
+  },
+  {
+    nation: "sweden",
+    familyId: "65x55",
+    label: "6.5×55mm Swedish",
+    weapons: [
+      { id: "mauser-m96", name: "Swedish m/96", year: 1896, rpCost: 18 },
+      { id: "mauser-m94", name: "Swedish m/94 carbine", year: 1894, rpCost: 20 },
+      { id: "ksp-m21", name: "Kulsprutegevär m/21", year: 1921, rpCost: 28 },
+    ],
+  },
+  {
+    nation: "switzerland",
+    familyId: "75x53",
+    label: "7.5×53.5mm Swiss",
+    weapons: [{ id: "schmidt-rubin-1896", name: "Schmidt–Rubin 1896", year: 1896, rpCost: 18 }],
+  },
+  {
+    nation: "switzerland",
+    familyId: "75x55",
+    label: "7.5×55mm Swiss",
+    previousFamilyId: "75x53",
+    weapons: [
+      { id: "schmidt-rubin-1911", name: "Schmidt–Rubin 1911", year: 1911, rpCost: 22 },
+      { id: "karabiner-11", name: "Karabiner 11", year: 1911, rpCost: 22 },
+      { id: "lmg-25", name: "Furrer Lmg 25", year: 1925, rpCost: 28 },
+    ],
+  },
+  {
+    nation: "austria",
+    familyId: "8x50mann",
+    label: "8×50mmR Mannlicher",
+    weapons: [
+      { id: "mannlicher-m1895", name: "Mannlicher M1895", year: 1895, rpCost: 18 },
+      { id: "mannlicher-m1895-stutzen", name: "Mannlicher M1895 Stutzen", year: 1895, rpCost: 20 },
+      { id: "schwarzlose-m712", name: "Schwarzlose M.7/12", year: 1912, rpCost: 30 },
+    ],
+  },
+  {
+    nation: "austria",
+    familyId: "8x56r",
+    label: "8×56mmR Steyr",
+    previousFamilyId: "8x50mann",
+    weapons: [{ id: "mannlicher-m9530", name: "Mannlicher M95/30", year: 1930, rpCost: 24 }],
+  },
+  {
+    nation: "belgium",
+    familyId: "765x53",
+    label: "7.65×53mm Mauser",
+    weapons: [
+      { id: "mauser-1889", name: "Mauser Model 1889", year: 1889, rpCost: 18 },
+      { id: "fn-m1930", name: "FN Model 1930", year: 1930, rpCost: 28 },
+    ],
+  },
+  {
+    nation: "greece",
+    familyId: "65x54",
+    label: "6.5×54mm Mannlicher–Schönauer",
+    weapons: [
+      { id: "schonauer-m1903", name: "Mannlicher–Schönauer M1903", year: 1903, rpCost: 18 },
+      { id: "schonauer-m1903-14", name: "Mannlicher–Schönauer M1903/14", year: 1914, rpCost: 22 },
+    ],
+  },
+  {
+    nation: "netherlands",
+    familyId: "65x53r",
+    label: "6.5×53mmR Mannlicher",
+    weapons: [
+      { id: "mannlicher-m95-dutch", name: "Dutch Mannlicher M.95", year: 1895, rpCost: 18 },
+      { id: "mannlicher-m95-carbine", name: "Dutch Mannlicher carbine", year: 1895, rpCost: 20 },
+      { id: "lewis-m20", name: "Lewis M.20", year: 1920, rpCost: 28 },
+    ],
   },
 ];
 
@@ -90,55 +218,69 @@ function loadNodeId(familyId: string, subtype: LoadSubtype): string {
 
 function buildFamilyItemNodes(path: FamilyPath): ResearchNode[] {
   const calId = caliberNodeId(path.familyId);
-  const primaryId = weaponNodeId(path.primaryRifleId);
-  const secondId = weaponNodeId(path.secondRifleId);
-  return [
+  const primary = path.weapons[0];
+  if (!primary) return [];
+  const primaryId = weaponNodeId(primary.id);
+  const nodes: ResearchNode[] = [
     {
       id: calId,
       name: `${path.label} caliber`,
       kind: "item",
       rpCost: 12,
-      requires: [],
-      blurb: `Unlock ${path.label} chamber and FMJ loads.`,
+      requires: path.previousFamilyId ? [caliberNodeId(path.previousFamilyId)] : [],
+      earliestYear: path.previousFamilyId ? primary.year : undefined,
+      blurb: path.previousFamilyId
+        ? `Next cartridge on this national line. Unlocks ${path.label} and FMJ.`
+        : `Unlock ${path.label} and its FMJ load.`,
       effects: [{ type: "unlock_item", itemId: path.familyId }],
+      nation: path.nation,
     },
     {
       id: primaryId,
-      name: path.primaryRifleName,
+      name: primary.name,
       kind: "item",
-      rpCost: 18,
+      rpCost: primary.rpCost,
       requires: [calId],
-      blurb: `Primary rifle for ${path.label}.`,
-      effects: [{ type: "unlock_item", itemId: path.primaryRifleId }],
+      earliestYear: primary.year > 1910 ? primary.year : undefined,
+      blurb: `Service weapon for ${path.label}.`,
+      effects: [{ type: "unlock_item", itemId: primary.id }],
+      nation: path.nation,
     },
     {
-      id: `acc-${path.primaryRifleId}-bayonet`,
-      name: `${path.primaryRifleName} bayonet`,
+      id: `acc-${primary.id}-bayonet`,
+      name: `${primary.name} bayonet`,
       kind: "item",
       rpCost: 8,
       requires: [primaryId],
       blurb: "Socket bayonet accessory.",
-      effects: [{ type: "unlock_item", itemId: `acc-${path.primaryRifleId}-bayonet` }],
+      effects: [{ type: "unlock_item", itemId: `acc-${primary.id}-bayonet` }],
+      nation: path.nation,
     },
     {
-      id: `acc-${path.primaryRifleId}-sling`,
-      name: `${path.primaryRifleName} sling`,
+      id: `acc-${primary.id}-sling`,
+      name: `${primary.name} sling`,
       kind: "item",
       rpCost: 5,
       requires: [primaryId],
       blurb: "Carry sling accessory.",
-      effects: [{ type: "unlock_item", itemId: `acc-${path.primaryRifleId}-sling` }],
+      effects: [{ type: "unlock_item", itemId: `acc-${primary.id}-sling` }],
+      nation: path.nation,
     },
-    {
-      id: secondId,
-      name: path.secondRifleName,
+  ];
+  for (const weapon of path.weapons.slice(1)) {
+    nodes.push({
+      id: weaponNodeId(weapon.id),
+      name: weapon.name,
       kind: "item",
-      rpCost: 22,
+      rpCost: weapon.rpCost,
       requires: [primaryId],
-      earliestYear: path.secondYear,
-      blurb: `Second weapon on ${path.label}.`,
-      effects: [{ type: "unlock_item", itemId: path.secondRifleId }],
-    },
+      earliestYear: weapon.year > 1910 ? weapon.year : undefined,
+      blurb: `${weapon.name} on ${path.label}.`,
+      effects: [{ type: "unlock_item", itemId: weapon.id }],
+      nation: path.nation,
+    });
+  }
+  nodes.push(
     {
       id: loadNodeId(path.familyId, "hollow_point"),
       name: `${path.label} hollow point`,
@@ -147,6 +289,7 @@ function buildFamilyItemNodes(path: FamilyPath): ResearchNode[] {
       requires: [calId],
       blurb: "HP load subtype (high damage / low pen).",
       effects: [{ type: "unlock_item", itemId: loadNodeId(path.familyId, "hollow_point") }],
+      nation: path.nation,
     },
     {
       id: loadNodeId(path.familyId, "ap"),
@@ -156,8 +299,10 @@ function buildFamilyItemNodes(path: FamilyPath): ResearchNode[] {
       requires: [calId],
       blurb: "Armor-piercing load subtype.",
       effects: [{ type: "unlock_item", itemId: loadNodeId(path.familyId, "ap") }],
+      nation: path.nation,
     },
-  ];
+  );
+  return nodes;
 }
 
 const TECH_NODES: ResearchNode[] = [
@@ -401,7 +546,20 @@ export function isResearchUnlocked(state: GameState, id: string): boolean {
 }
 
 export function primaryRifleIdForFamily(familyId: string): string | undefined {
-  return FAMILY_PATHS.find((p) => p.familyId === familyId)?.primaryRifleId;
+  return FAMILY_PATHS.find((path) => path.familyId === familyId)?.weapons[0]?.id;
+}
+
+export function playerNation(state: GameState): NationId | null {
+  if (!state.selectedCaliberId) return null;
+  return FAMILY_PATHS.find((path) => path.familyId === state.selectedCaliberId)?.nation ?? null;
+}
+
+function nationBlocked(state: GameState, node: ResearchNode): string | null {
+  if (!node.nation) return null;
+  const nation = playerNation(state);
+  if (!nation) return "Choose a national caliber before researching its weapons.";
+  if (nation !== node.nation) return `${node.name} stays on another nation's line.`;
+  return null;
 }
 
 export function caliberResearchId(familyId: string): string {
@@ -470,6 +628,8 @@ export function canResearch(
   if (node.kind === "vehicle") {
     return { ok: false, reason: `${node.name} is Phase 2 (vehicles deferred).`, node };
   }
+  const foreign = nationBlocked(state, node);
+  if (foreign) return { ok: false, reason: foreign, node };
   if (isResearchUnlocked(state, nodeId)) {
     return { ok: false, reason: `Already unlocked: ${node.name}.`, node };
   }
@@ -608,6 +768,8 @@ export function moraleDesertionThresholdBonus(state: GameState): number {
 export function listAvailableResearch(state: GameState): ResearchNode[] {
   return RESEARCH_CATALOG.filter((n) => {
     if (n.kind === "vehicle") return false;
+    if (nationBlocked(state, n)) return false;
+    if (n.earliestYear != null && state.year < n.earliestYear) return false;
     if (isResearchUnlocked(state, n.id)) return false;
     if (n.rpCost <= 0 && n.id === "gear-basic-pouch") return false;
     return missingPrereqs(state, n).length === 0;
@@ -648,10 +810,8 @@ export function grantStarterCaliberPath(
   state: GameState,
   familyId: CaliberFamilyId,
 ): GameState {
-  const path = FAMILY_PATHS.find((p) => p.familyId === familyId);
-  if (!path) return state;
-  return grantResearch(state, [
-    caliberNodeId(path.familyId),
-    weaponNodeId(path.primaryRifleId),
-  ]);
+  const path = FAMILY_PATHS.find((entry) => entry.familyId === familyId);
+  const primary = path?.weapons[0];
+  if (!path || !primary) return state;
+  return grantResearch(state, [caliberNodeId(path.familyId), weaponNodeId(primary.id)]);
 }

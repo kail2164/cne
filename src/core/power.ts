@@ -38,7 +38,9 @@ export interface ForceProfile {
   rangeM: number;
   /** Max range ~30% hit band (m). */
   maxRangeM: number;
+  /** Mild steel defeated at 100 m, in millimeters. */
   penetration: number;
+  /** Steel-equivalent protection, in millimeters. */
   armor: number;
   damagePerEntity: number;
   hpPerEntity: number;
@@ -80,11 +82,11 @@ const TIER_ENEMY: Record<
   ContractTier,
   { rangeM: number; maxRangeM: number; pen: number; armor: number; loadoutQ: number; morale: number; exp: number; accuracy: number; moa: number }
 > = {
-  local: { rangeM: 320, maxRangeM: 900, pen: 45, armor: 40, loadoutQ: 45, morale: 55, exp: 30, accuracy: 48, moa: 3.5 },
-  province: { rangeM: 380, maxRangeM: 1100, pen: 52, armor: 48, loadoutQ: 55, morale: 58, exp: 40, accuracy: 52, moa: 3.2 },
-  interstate: { rangeM: 420, maxRangeM: 1300, pen: 58, armor: 55, loadoutQ: 62, morale: 60, exp: 50, accuracy: 55, moa: 3.0 },
-  national: { rangeM: 480, maxRangeM: 1500, pen: 65, armor: 62, loadoutQ: 70, morale: 65, exp: 60, accuracy: 58, moa: 2.8 },
-  global: { rangeM: 550, maxRangeM: 1700, pen: 72, armor: 70, loadoutQ: 78, morale: 70, exp: 70, accuracy: 62, moa: 2.6 },
+  local: { rangeM: 320, maxRangeM: 900, pen: 3.8, armor: 3.4, loadoutQ: 45, morale: 55, exp: 30, accuracy: 48, moa: 3.5 },
+  province: { rangeM: 380, maxRangeM: 1100, pen: 4.4, armor: 4.1, loadoutQ: 55, morale: 58, exp: 40, accuracy: 52, moa: 3.2 },
+  interstate: { rangeM: 420, maxRangeM: 1300, pen: 5.0, armor: 4.7, loadoutQ: 62, morale: 60, exp: 50, accuracy: 55, moa: 3.0 },
+  national: { rangeM: 480, maxRangeM: 1500, pen: 5.6, armor: 5.3, loadoutQ: 70, morale: 65, exp: 60, accuracy: 58, moa: 2.8 },
+  global: { rangeM: 550, maxRangeM: 1700, pen: 6.2, armor: 6.0, loadoutQ: 78, morale: 70, exp: 70, accuracy: 62, moa: 2.6 },
 };
 
 /** Reference mag cycle (~G98: 5 rd @ 12 rpm + 7.5 s reload). */
@@ -149,13 +151,13 @@ export function loadoutQualityFor(soldier: Soldier): number {
   const c = getCaliber(soldier.loadout.ammoCaliberId);
   if (!w || !c) return 0;
   const dmg = c.baseDamage + w.damage;
-  const pen = c.basePenetration + w.penetration;
+  const pen = effectivePenetration(soldier.loadout.weaponId, soldier.loadout.ammoCaliberId);
   const fire = clamp(w.fireRateRpm / 20, 0.5, 1.2);
   const reli = reliabilityAfterWear(w.reliabilityPct, weaponConditionOf(soldier.loadout)) / 100;
   const moaQ = moaToWeaponAccuracy(w.accuracyMoaAt200m) / 100;
   const tempo = weaponTempoFactor(w, soldier);
-  // Typical 1910 rifle pair → ~55–70
-  return clamp(dmg * 2.2 + pen * 0.35 + fire * 15 + reli * 18 + moaQ * 8 + (tempo - 1) * 20, 0, 100);
+  // Typical 1910 rifle pair → ~55–70. 4.2 per mm keeps a ~12 mm rifle near the old score.
+  return clamp(dmg * 2.2 + pen * 4.2 + fire * 15 + reli * 18 + moaQ * 8 + (tempo - 1) * 20, 0, 100);
 }
 
 /**
@@ -175,7 +177,7 @@ export function computeFriendlyProfile(soldiers: Soldier[]): ForceProfile {
       rangeM: 0,
       maxRangeM: 0,
       penetration: 0,
-      armor: 25,
+      armor: 2,
       damagePerEntity: 0,
       hpPerEntity: 100,
       power: 0,
@@ -237,8 +239,8 @@ export function computeFriendlyProfile(soldiers: Soldier[]): ForceProfile {
   const accuracy = armed > 0 ? accSum / armed : avg(live.map((s) => s.accuracy));
   const tempoFactor = armed > 0 ? tempoSum / armed : 1;
   const hpPerEntity = avg(live.map((s) => s.maxHp), 100);
-  // Soft armor stub from strength/gear — no full armor catalog yet
-  const armor = 28 + avg(live.map((s) => s.strength)) * 0.25;
+  // Steel-equivalent millimeters, so this compares with round penetration.
+  const armor = 2.4 + avg(live.map((s) => s.strength)) * 0.021;
 
   // Scale keeps ~20 Gewehr recruits near prior readiness (~160–180 / gate 140).
   const power = size * quality * avgFactor * 22;

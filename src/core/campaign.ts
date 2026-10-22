@@ -15,6 +15,7 @@ import {
   grantStarterCaliberPath,
   isLoadSubtypeUnlocked,
 } from "./research.js";
+import { storeItems } from "./warehouse.js";
 import type {
   ActionResult,
   CaliberId,
@@ -66,6 +67,7 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
     jobsCompletedTowardNext: 0,
     jobsCompletedTotal: 0,
     contractBoard: [],
+    battle: null,
   };
   const shed = startingResearchShed();
   const sci = startingScientist(shed.id);
@@ -77,7 +79,7 @@ export function createCampaign(companyName = "1st Provisional Company"): GameSta
 
 /** One row per family (FMJ baseline) for starting pick UI. */
 export function listStartingCalibers() {
-  return CALIBER_FAMILIES.map((f) => {
+  return CALIBER_FAMILIES.filter((family) => family.starter).map((f) => {
     const fmj = getAmmo(f.id, "fmj")!;
     return {
       id: f.id,
@@ -120,7 +122,7 @@ export function selectCaliber(state: GameState, caliberId: CaliberId): ActionRes
     return { ok: false, state, message: `Unknown caliber family: ${caliberId}` };
   }
   const rifle = getRifleForCaliber(caliberId);
-  const granted = grantStarterCaliberPath(
+  let next = grantStarterCaliberPath(
     {
       ...state,
       selectedCaliberId: caliberId,
@@ -128,10 +130,22 @@ export function selectCaliber(state: GameState, caliberId: CaliberId): ActionRes
     },
     caliberId,
   );
+  const starterGuns = 5;
+  let issued = 0;
+  if (rifle) {
+    const stored = storeItems(next, "weapon", rifle.id, starterGuns, rifle.weight, rifle.volume);
+    if (stored.ok) {
+      next = stored.state;
+      issued = stored.data?.stored ?? starterGuns;
+    }
+  }
+  const gunNote = rifle
+    ? ` Issued ${issued} ${rifle.name}.`
+    : "";
   return {
     ok: true,
-    state: granted,
-    message: `Selected ${family.name}. Research granted: caliber + ${rifle?.name ?? "primary rifle"}. Load default: FMJ.`,
+    state: next,
+    message: `Selected ${family.name}. Research granted: caliber + ${rifle?.name ?? "primary rifle"}.${gunNote} Load default: FMJ.`,
   };
 }
 
@@ -162,7 +176,7 @@ export function setLoadSubtype(
   return {
     ok: true,
     state: { ...state, selectedLoadSubtype: subtype },
-    message: `Load subtype: ${LOAD_SUBTYPE_LABEL[subtype]} (${ammo.name}) — cost $${ammo.productionCost}/rd, dmg ${ammo.baseDamage}, pen ${ammo.basePenetration}.`,
+    message: `Load subtype: ${LOAD_SUBTYPE_LABEL[subtype]} (${ammo.name}) — cost $${ammo.productionCost}/rd, dmg ${ammo.baseDamage}, pen ${ammo.basePenetration} mm steel.`,
   };
 }
 

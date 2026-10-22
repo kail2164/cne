@@ -299,6 +299,57 @@ export function listFormations(state: GameState, echelon?: OrgEchelon): OrgUnit[
   return state.squads.filter((u) => (echelon ? u.echelon === echelon : true));
 }
 
+/** Pull soldiers off their current formation so they can be reassigned. */
+export function unassignSoldiers(
+  state: GameState,
+  soldierIds: string[],
+): ActionResult {
+  const ids = [...new Set(soldierIds)];
+  if (ids.length === 0) {
+    return { ok: false, state, message: "No soldiers selected." };
+  }
+  const idSet = new Set(ids);
+  const soldiers = state.company.soldiers.map((soldier) => {
+    if (!idSet.has(soldier.id) || !soldier.alive || soldier.duty === "wounded") return soldier;
+    return { ...soldier, squadId: null, duty: "unassigned" as const };
+  });
+  const squads = state.squads.map((unit) => ({
+    ...unit,
+    soldierIds: unit.soldierIds.filter((id) => !idSet.has(id)),
+    commanderSoldierId:
+      unit.commanderSoldierId && idSet.has(unit.commanderSoldierId)
+        ? null
+        : unit.commanderSoldierId,
+  }));
+  return {
+    ok: true,
+    state: { ...state, company: { ...state.company, soldiers }, squads },
+    message: `Released ${ids.length} from their formation.`,
+  };
+}
+
+/** Make a formation member its commander. */
+export function appointCommander(state: GameState, soldierId: string): ActionResult {
+  const soldier = state.company.soldiers.find((s) => s.id === soldierId && s.alive);
+  if (!soldier) return { ok: false, state, message: "Soldier not found." };
+  if (!soldier.squadId) {
+    return { ok: false, state, message: `${soldier.name} is not in a formation.` };
+  }
+  const unit = state.squads.find((u) => u.id === soldier.squadId);
+  if (!unit) return { ok: false, state, message: "Formation missing." };
+  if (!unit.soldierIds.includes(soldier.id)) {
+    return { ok: false, state, message: `${soldier.name} is not on ${unit.name}.` };
+  }
+  const squads = state.squads.map((u) =>
+    u.id === unit.id ? { ...u, commanderSoldierId: soldier.id } : u,
+  );
+  return {
+    ok: true,
+    state: { ...state, squads },
+    message: `${soldier.name} now commands ${unit.name}.`,
+  };
+}
+
 export function describeOrg(state: GameState): string[] {
   return state.squads.map((u) => {
     const cdr = u.commanderSoldierId ?? "—";

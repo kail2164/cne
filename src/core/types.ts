@@ -1,10 +1,39 @@
+/** Country line. A company that starts on one line never researches another. */
+export type NationId =
+  | "ussr"
+  | "us"
+  | "uk"
+  | "france"
+  | "germany"
+  | "italy"
+  | "japan"
+  | "spain"
+  | "sweden"
+  | "switzerland"
+  | "austria"
+  | "belgium"
+  | "greece"
+  | "netherlands";
+
 /** Caliber family lock / rifle chamber (not a specific load). */
 export type CaliberId =
   | "762x54r"
   | "3006"
   | "303br"
   | "8x50r"
-  | "792x57";
+  | "792x57"
+  | "75x54"
+  | "65x52"
+  | "65x50sr"
+  | "7x57"
+  | "65x55"
+  | "75x55"
+  | "75x53"
+  | "8x50mann"
+  | "8x56r"
+  | "765x53"
+  | "65x54"
+  | "65x53r";
 
 export type CaliberFamilyId = CaliberId;
 
@@ -40,6 +69,10 @@ export type BarrackDuty = "unassigned" | "assigned" | "wounded" | "ready";
 export interface CaliberFamily {
   id: CaliberFamilyId;
   name: string;
+  /** National line this cartridge belongs to. */
+  nation: NationId;
+  /** Offered at the start. Later cartridges on that line are research. */
+  starter: boolean;
   /** Load subtypes this family can produce. */
   variants: LoadSubtype[];
 }
@@ -59,7 +92,7 @@ export interface AmmoCaliber {
   volumePerRound: number;
   /** Basic damage; weapon.damage adds a flat bonus. */
   baseDamage: number;
-  /** Basic penetration; weapon.penetration adds a flat bonus. */
+  /** Mild steel defeated at 100 m, in millimeters. */
   basePenetration: number;
   /** Propellant charge in grains. */
   gunPowderAmount: number;
@@ -151,7 +184,7 @@ export interface Weapon {
   volume: number;
   /** Muzzle velocity in m/s. */
   muzzleVelocityMps: number;
-  /** Angular accuracy in minutes of angle at 200 m (lower = tighter). */
+  /** Minutes of angle at 200 m. One minute is 0.16 m of group diameter there. */
   accuracyMoaAt200m: number;
   /** Max range in meters where hit potential is ~30%. */
   maxRangeM30pct: number;
@@ -175,10 +208,14 @@ export interface Weapon {
   wearPerMagazine: number;
   /** Recoil harshness (0–100, higher = harder to control). */
   recoil: number;
-  /** Penetration vs soft cover / barriers (0–100). */
+  /** Mild steel defeated at 100 m with this rifle's standard ball, in millimeters. */
   penetration: number;
-  /** Base combat damage contribution per soldier volley factor. */
+  /** Base combat damage contribution of one round from one soldier. */
   damage: number;
+  /** Can use full auto. Bolt-actions leave this off. */
+  fullAuto?: boolean;
+  /** First year this weapon is in service. Omitted means 1910. */
+  introducedYear?: number;
 }
 
 export interface Loadout {
@@ -221,6 +258,8 @@ export interface GearDef {
   ammoCapacityBonus: number;
   /** Soft armor contribution (0–100). */
   armorBonus: number;
+  /** Manufacture cost in funds, before the factory tier multiplier. */
+  productionCost: number;
 }
 
 /**
@@ -287,8 +326,10 @@ export type FactoryTierId =
   | "industrial";
 
 export interface FactorySlot {
-  /** Product for this month; null = idle. */
+  /** Product kind for this month; null = idle. */
   product: FactoryProductKind | null;
+  /** Catalog id for that kind: ammo, weapon, gear, or grenade. */
+  itemId: string | null;
   /** Locked after set until end turn. */
   locked: boolean;
 }
@@ -296,12 +337,16 @@ export interface FactorySlot {
 export interface OwnedFactory {
   id: string;
   tierId: FactoryTierId;
-  /** Upgrade stage 1–5; stage 5 unlocks second slot. */
+  /** Upgrade stage 1–5. Each stage doubles output and funds spent. Stage 5 opens a second slot. */
   stage: number;
   slots: FactorySlot[];
 }
 
-/** Catalog row for a factory tier. */
+/**
+ * Catalog row for a factory tier.
+ * Stage-1 output doubles each tier. Monthly funds scale by 2.5× each tier,
+ * so the unit-cost multiplier is (2.5 / 2) ^ tier index. Blacksmith is ×1.
+ */
 export interface FactoryTierDef {
   id: FactoryTierId;
   name: string;
@@ -311,7 +356,7 @@ export interface FactoryTierDef {
   baseWeapons: number;
   baseGears: number;
   baseGrenades: number;
-  /** Multiplier on unit manufacture costs. */
+  /** Multiplier on unit manufacture costs versus the catalog price. */
   unitCostMult: number;
 }
 
@@ -411,6 +456,8 @@ export interface ResearchNode {
   requiresBuilding?: string;
   blurb: string;
   effects: ResearchEffect[];
+  /** Set on cartridge and weapon nodes. Other nations stay off the company's list. */
+  nation?: NationId;
 }
 
 export type ResearchFacilityTierId =
@@ -447,6 +494,90 @@ export interface Scientist {
   salary: number;
   /** Facility id if housed; null if unassigned (should not happen in Phase 1). */
   facilityId: string | null;
+}
+
+/** One row of identical guns. Damage is the sum of their weapon damage, not a cumulative line. */
+export interface FireGroup {
+  /** Round penetration in millimeters. */
+  pen: number;
+  /** Reach in hexes. 50 m is one hex. */
+  range: number;
+  /** Weapon damage of every gun in the row. */
+  damage: number;
+  /** How many guns share this penetration, range, and fire rate. */
+  guns: number;
+  /** Cyclic rate in rounds per minute, before reloads. */
+  rpm: number;
+  /** Rounds in one magazine. */
+  magazine: number;
+  /** Seconds to reload one magazine. */
+  reload: number;
+  /** This row can fire full auto. */
+  fullAuto: boolean;
+  /** Minutes of angle at 200 m. */
+  moa: number;
+  /** Accuracy mark for this weapon. Men carrying it share their average. 3 is baseline, 5 is the cap. */
+  aim: number;
+}
+
+/** A body inside a stack. Men share one armor rating. Each vehicle keeps its own. */
+export interface BattlePart {
+  id: string;
+  name: string;
+  kind: "men" | "vehicle";
+  /** Millimeters, same scale as FireGroup.pen. */
+  armor: number;
+  hp: number;
+  hpEach: number;
+  count: number;
+  maxCount: number;
+}
+
+/** How an AI stack closes and which fire mode it favors. */
+export type BattleDoctrine = "offensive" | "balance" | "defensive";
+
+/** One formation on the tactical board. Speed is the stack's average and decides who acts next. */
+export interface BattleStack {
+  id: string;
+  side: "friendly" | "enemy";
+  name: string;
+  /** Offensive closes for full auto, balance for bursts, defensive for aimed fire. */
+  doctrine: BattleDoctrine;
+  formationId: string | null;
+  soldierIds: string[];
+  count: number;
+  maxCount: number;
+  hp: number;
+  hpEach: number;
+  /** Close-range damage of the fullest line (every gun, softest target). */
+  attack: number;
+  /** Armor of the men, in millimeters. */
+  defense: number;
+  /** Farthest weapon in the stack, in hexes. Each weapon keeps its own average reach. */
+  range: number;
+  /** Average of the men in this stack. Higher acts next. Also how many hexes it can move. */
+  speed: number;
+  ammo: number;
+  /** Exact weapon rows. A parent stack is the sum of its children. */
+  groups: FireGroup[];
+  /** Men, and any vehicle that rides with them. A shot picks one. */
+  parts: BattlePart[];
+  col: number;
+  row: number;
+  acted: boolean;
+  moved: boolean;
+  shot: boolean;
+}
+
+/** Heroes-style battle on a 20×10 hex field. */
+export interface BattleState {
+  contractId: string;
+  phase: "prepare" | "fight" | "done";
+  round: number;
+  stacks: BattleStack[];
+  activeStackId: string | null;
+  log: string[];
+  outcome?: "win" | "loss" | "retreat";
 }
 
 export interface GameState {
@@ -505,6 +636,11 @@ export interface GameState {
   jobsCompletedTotal: number;
   /** Up to 10 available contract ids. */
   contractBoard: string[];
+  /**
+   * Tactical battle for the current contract.
+   * Null while the company is on the campaign map.
+   */
+  battle: BattleState | null;
 }
 
 export interface ActionResult<T = void> {

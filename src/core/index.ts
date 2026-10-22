@@ -9,6 +9,7 @@ export {
   LOAD_SUBTYPES,
   LOAD_SUBTYPE_LABEL,
   LOAD_SUBTYPE_MULT,
+  NATION_LABEL,
   ammoId,
   getCaliber,
   getCaliberFamily,
@@ -62,9 +63,15 @@ export {
   FACTORY_TIERS,
   GRENADES,
   MAX_FACTORY_STAGE,
+  STAGE_SCALE,
+  TIER_INPUT_SCALE,
+  TIER_OUTPUT_SCALE,
   getFactoryTier,
   getGrenade,
   stageOutputMult,
+  describeTierEconomy,
+  listManufacturable,
+  quoteManufacture,
   slotCountForStage,
   normalizeProduct,
   createOwnedFactory,
@@ -98,6 +105,8 @@ export {
   quoteRecruitBatch,
   recruitSoldiers,
   armSoldiers,
+  dismissSoldier,
+  equipSoldiers,
   issueCompanyAmmo,
   isArmed,
   carryCapacityKg,
@@ -112,6 +121,40 @@ export {
 } from "./logistics.js";
 
 export { startContract, progressCombatMonth } from "./combat.js";
+
+export {
+  BURST_RATE,
+  AIM_RATE,
+  fireLines,
+  formatFireLines,
+  formationFirepower,
+  PARTIAL_PEN_CHANCE,
+  PARTIAL_PEN_RATIO,
+  stackHasFullAuto,
+  volleyDamage,
+} from "./firepower.js";
+export type { FireMode } from "./firepower.js";
+
+export {
+  BATTLE_COLS,
+  BATTLE_MAX_STACKS,
+  BATTLE_ROWS,
+  battleOrder,
+  beginBattle,
+  finishBattleAction,
+  hexDistance,
+  listBringableFormations,
+  moveBattleStack,
+  openBattle,
+  placeBattleStack,
+  previewEnemyStacks,
+  previewFormation,
+  reachableHexes,
+  retreatBattle,
+  shootBattleStack,
+  soldiersInFormation,
+  splitBattleStack,
+} from "./battle.js";
 
 export {
   computeFriendlyProfile,
@@ -186,6 +229,8 @@ export {
   formFireTeam,
   formSquadFromTeams,
   formHigherEchelon,
+  unassignSoldiers,
+  appointCommander,
   listFormations,
   describeOrg,
 } from "./org.js";
@@ -222,6 +267,7 @@ export {
   productionOutputMult,
   successChanceBoost,
   primaryRifleIdForFamily,
+  playerNation,
   caliberResearchId,
   weaponResearchId,
   loadResearchId,

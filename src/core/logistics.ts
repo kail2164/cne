@@ -30,9 +30,6 @@ export function assessReadiness(state: GameState, contract: Contract): Readiness
       `Need ${contract.manpowerRequired} manpower (have ${troopCount})`,
     );
   }
-  if (power < contract.minPower) {
-    failures.push(`Need power ≥ ${contract.minPower} (have ${power.toFixed(1)})`);
-  }
   if (totalAmmo <= 0) {
     failures.push("Company carries no ammo");
   }
@@ -100,7 +97,7 @@ export function estimateSuccessChance(state: GameState, contract: Contract): num
 
 export function describeBoard(state: GameState): string[] {
   return listBoardContracts(state).map((c, i) => {
-    const gate = `men ${c.manpowerRequired} / pwr ${c.minPower}`;
+    const gate = `${c.manpowerRequired} armed`;
     return `${i + 1}. [${c.tier}] ${c.name} — ${c.turnsNeeded} mo, $${c.cashReward}, ${gate}`;
   });
 }

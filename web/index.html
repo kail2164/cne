@@ -13,43 +13,29 @@
         <p class="tag">1910 logistics — browser shell over core</p>
       </header>
 
+      <nav class="tabs" id="main-tabs" aria-label="Company">
+        <button type="button" class="tab" data-tab="arsenal">Arsenal</button>
+        <button type="button" class="tab" data-tab="barracks">Barracks</button>
+        <button type="button" class="tab" data-tab="production">Production</button>
+        <button type="button" class="tab" data-tab="research">Research</button>
+        <button type="button" class="tab" data-tab="contract">Contract</button>
+      </nav>
+
       <section id="status" class="panel"></section>
 
-      <section class="grid">
-        <div class="panel">
-          <h2>Caliber</h2>
-          <div id="caliber"></div>
-        </div>
-        <div class="panel">
-          <h2>Recruit</h2>
-          <div id="recruit"></div>
-        </div>
-        <div class="panel">
-          <h2>Factory</h2>
-          <div id="factory"></div>
-        </div>
-        <div class="panel">
-          <h2>Research</h2>
-          <div id="research"></div>
-        </div>
+      <section class="panel toolbar">
+        <button type="button" class="primary" id="btn-end">End turn</button>
       </section>
 
-      <section class="panel">
-        <h2>Contract board</h2>
-        <div id="board"></div>
-      </section>
-
-      <section class="panel actions">
-        <button type="button" id="btn-end">End turn</button>
-        <button type="button" id="btn-arm">Arm reserves</button>
-        <button type="button" id="btn-ammo">Issue ammo (35)</button>
-      </section>
+      <section id="view" class="panel view"></section>
 
       <section class="panel">
         <h2>Log</h2>
         <pre id="log" class="log"></pre>
       </section>
     </div>
+
+    <div id="start-gate" class="gate" hidden></div>
     <script type="module" src="./main.ts"></script>
   </body>
 </html>

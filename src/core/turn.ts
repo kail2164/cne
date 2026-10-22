@@ -32,6 +32,13 @@ function tickWounded(state: GameState): GameState {
  * factory → unlock → combat month → upkeep (salary/food/desertion) → calendar → wounded.
  */
 export function endTurn(state: GameState): ActionResult<EndTurnResult> {
+  if (state.battle && state.battle.phase !== "done") {
+    return {
+      ok: false,
+      state,
+      message: "A battle is on the board. Finish it or retreat before ending the month.",
+    };
+  }
   const previousYear = state.year;
   const previousMonth = state.month;
 
